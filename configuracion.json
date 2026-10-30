@@ -76,6 +76,16 @@
       "id": "one",
       "nombre": "One",
       "logo": "logos/one.jpg"
+    },
+    {
+      "id": "palma-real",
+      "nombre": "Palma Real",
+      "logo": "logos/palma-real.jpg"
+    },
+    {
+      "id": "malinches-master",
+      "nombre": "Malinches de Pinilla Master",
+      "logo": "logos/los-malinches.jpg"
     }
   ],
   "apartados": [

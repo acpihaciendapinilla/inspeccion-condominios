@@ -1,0 +1,227 @@
+{
+  "personas": [
+    {
+      "nombre": "Yaner Rosales",
+      "cargo": "COA Coordinator"
+    },
+    {
+      "nombre": "Olver Cubero",
+      "cargo": "COA Coordinator"
+    },
+    {
+      "nombre": "Joselyn Sánchez",
+      "cargo": "Manager"
+    },
+    {
+      "nombre": "Erika Barrantes",
+      "cargo": "COA Coordinator"
+    },
+    {
+      "nombre": "Adriana Arias",
+      "cargo": "COA Coordinator"
+    }
+  ],
+  "condominios": [
+    {
+      "id": "almendros",
+      "nombre": "Los Almendros",
+      "logo": "logos/los-almendros.jpg"
+    },
+    {
+      "id": "brisas",
+      "nombre": "Las Brisas",
+      "logo": "logos/las-brisas.jpg"
+    },
+    {
+      "id": "azur",
+      "nombre": "Azur",
+      "logo": "logos/azur.jpg"
+    },
+    {
+      "id": "coralis",
+      "nombre": "Coralis",
+      "logo": "logos/coralis.jpg"
+    },
+    {
+      "id": "golondrinas",
+      "nombre": "Las Golondrinas",
+      "logo": "logos/las-golondrinas.jpg"
+    },
+    {
+      "id": "golf",
+      "nombre": "Reserva de Golf",
+      "logo": "logos/reserva-de-golf.jpg"
+    },
+    {
+      "id": "jardines",
+      "nombre": "Jardines de Palma Real",
+      "logo": "logos/jardines-de-palma-real.jpg"
+    },
+    {
+      "id": "lago",
+      "nombre": "Lago de Palma Real",
+      "logo": "logos/lago-de-palma-real.jpg"
+    },
+    {
+      "id": "malinches",
+      "nombre": "Los Malinches",
+      "logo": "logos/los-malinches.jpg"
+    },
+    {
+      "id": "bosques",
+      "nombre": "Bosques de Pinilla",
+      "logo": "logos/bosques-de-pinilla.jpg"
+    },
+    {
+      "id": "one",
+      "nombre": "One",
+      "logo": "logos/one.jpg"
+    }
+  ],
+  "apartados": [
+    {
+      "id": "infra",
+      "nombre": "Infraestructura y equipos",
+      "puntos": [
+        {
+          "id": "infra-1",
+          "nombre": "Estado de calles"
+        },
+        {
+          "id": "infra-2",
+          "nombre": "Cuartos de bombas (potable)"
+        },
+        {
+          "id": "infra-3",
+          "nombre": "Cuartos de bombas (piscina)"
+        },
+        {
+          "id": "infra-4",
+          "nombre": "Estaciones sépticas"
+        },
+        {
+          "id": "infra-5",
+          "nombre": "Transformadores eléctricos"
+        },
+        {
+          "id": "infra-6",
+          "nombre": "Generadores eléctricos"
+        }
+      ]
+    },
+    {
+      "id": "verdes",
+      "nombre": "Zonas verdes",
+      "puntos": [
+        {
+          "id": "verdes-1",
+          "nombre": "Altura del césped"
+        },
+        {
+          "id": "verdes-2",
+          "nombre": "Control de plagas"
+        },
+        {
+          "id": "verdes-3",
+          "nombre": "Poda de árboles"
+        },
+        {
+          "id": "verdes-4",
+          "nombre": "Desechos de jardín"
+        },
+        {
+          "id": "verdes-5",
+          "nombre": "Estado de plantas"
+        }
+      ]
+    },
+    {
+      "id": "amen",
+      "nombre": "Amenidades",
+      "puntos": [
+        {
+          "id": "amen-1",
+          "nombre": "Piscina"
+        },
+        {
+          "id": "amen-2",
+          "nombre": "Gimnasio"
+        },
+        {
+          "id": "amen-3",
+          "nombre": "Baños y duchas comunes"
+        },
+        {
+          "id": "amen-4",
+          "nombre": "Deck de piscina"
+        },
+        {
+          "id": "amen-5",
+          "nombre": "Mobiliario de piscina"
+        },
+        {
+          "id": "amen-6",
+          "nombre": "Área de uso común (cocina, BBQ…)"
+        },
+        {
+          "id": "amen-7",
+          "nombre": "Deck de yoga"
+        }
+      ]
+    },
+    {
+      "id": "perim",
+      "nombre": "Perímetro, iluminación y señalización",
+      "puntos": [
+        {
+          "id": "perim-1",
+          "nombre": "Malla perimetral"
+        },
+        {
+          "id": "perim-2",
+          "nombre": "Iluminación general"
+        },
+        {
+          "id": "perim-3",
+          "nombre": "Señalización"
+        }
+      ]
+    },
+    {
+      "id": "acceso",
+      "nombre": "Seguridad y acceso",
+      "puntos": [
+        {
+          "id": "acceso-1",
+          "nombre": "Caseta de vigilancia y sus activos"
+        },
+        {
+          "id": "acceso-2",
+          "nombre": "Portones de ingreso"
+        },
+        {
+          "id": "acceso-3",
+          "nombre": "Sistema de control de ingreso"
+        }
+      ]
+    },
+    {
+      "id": "desechos",
+      "nombre": "Recolección de desechos",
+      "puntos": [
+        {
+          "id": "desechos-1",
+          "nombre": "Centros de recolección"
+        },
+        {
+          "id": "desechos-2",
+          "nombre": "Recolección en áreas privadas"
+        },
+        {
+          "id": "desechos-3",
+          "nombre": "Servicio de recolección de desechos de jardinería"
+        }
+      ]
+    }
+  ]
+}

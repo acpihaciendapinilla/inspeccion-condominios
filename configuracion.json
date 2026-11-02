@@ -1,26 +1,4 @@
 {
-  "personas": [
-    {
-      "nombre": "Yaner Rosales",
-      "cargo": "COA Coordinator"
-    },
-    {
-      "nombre": "Olver Cubero",
-      "cargo": "COA Coordinator"
-    },
-    {
-      "nombre": "Joselyn Sánchez",
-      "cargo": "COA Manager"
-    },
-    {
-      "nombre": "Erika Barrantes",
-      "cargo": "COA Coordinator"
-    },
-    {
-      "nombre": "Adriana Arias",
-      "cargo": "COA Coordinator"
-    }
-  ],
   "condominios": [
     {
       "id": "almendros",

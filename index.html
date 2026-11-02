@@ -212,12 +212,12 @@ textarea{min-height:76px;resize:vertical}
 <script>
 /* =========================================================
    CONFIGURACIÓN
-   Las personas, condominios y puntos NO se editan aquí:
+   Los condominios y puntos NO se editan aquí:
    están en el archivo configuracion.json (y los logos en la carpeta logos/).
    Ver AGENTS.md.
    ========================================================= */
 const HP = {logo:"logos/hacienda-pinilla.jpg", data:null, w:700, h:217};  // logo de Hacienda Pinilla
-let PERSONAS = [];     // [{nombre, cargo}]
+const CARGOS_SUGERIDOS = ["COA Coordinator","COA Manager"];  // sugerencias al escribir el cargo
 let CONDOMINIOS = [];  // [{id, nombre, logo}]
 let SECCIONES = [];    // [{id, nombre, puntos:[{id, nombre}]}]
 
@@ -225,7 +225,6 @@ function validarConfig(cfg){
   const err=[];
   if(!cfg || typeof cfg!=="object") return ["El archivo no tiene el formato esperado"];
   const lista=(k)=>Array.isArray(cfg[k])&&cfg[k].length?cfg[k]:(err.push(`Falta la lista "${k}"`),[]);
-  lista("personas").forEach((p,i)=>{ if(!p||!String(p.nombre||"").trim()) err.push(`Persona ${i+1} sin nombre`); if(!p||!String(p.cargo||"").trim()) err.push(`Persona ${i+1} sin cargo`); });
   const ids=new Set();
   const unico=(id,que)=>{ if(!id||typeof id!=="string") err.push(`${que} sin id`); else if(ids.has(id)) err.push(`id repetido: ${id}`); else ids.add(id); };
   lista("condominios").forEach((c,i)=>{ unico(c&&c.id,`Condominio ${i+1}`); if(!c||!String(c.nombre||"").trim()) err.push(`Condominio ${i+1} sin nombre`); });
@@ -235,7 +234,6 @@ function validarConfig(cfg){
   return err;
 }
 function aplicarConfig(cfg){
-  PERSONAS = cfg.personas.map(p=>({nombre:String(p.nombre).trim(), cargo:String(p.cargo).trim()}));
   CONDOMINIOS = cfg.condominios.map(c=>({id:c.id, nombre:String(c.nombre).trim(), logo:c.logo?String(c.logo):""}));
   SECCIONES = cfg.apartados.map(a=>({id:a.id, nombre:String(a.nombre).trim(), puntos:a.puntos.map(p=>({id:p.id, nombre:String(p.nombre).trim()}))}));
 }
@@ -333,7 +331,7 @@ const condoDe = rec => rec.condoInfo || CONDOMINIOS.find(c=>c.id===rec.condo) ||
 const logoDe = cd => cd.data || cd.logo || "";
 const secsDe = rec => (rec && rec.secciones) || SECCIONES;
 const todosDe = rec => secsDe(rec).flatMap(s => s.puntos.map(p => ({...p, sec:s})));
-const cargoDe = rec => rec.cargo || (PERSONAS.find(p=>p.nombre===rec.admin)||{}).cargo || "COA Coordinator";
+const cargoDe = rec => rec.cargo || "COA Coordinator";
 
 function nuevaInspeccion(persona, condo, logo){
   // Se guarda una copia de la configuración: si mañana cambia, esta inspección y su PDF no cambian.
@@ -416,7 +414,7 @@ function vHome(){
           : `<button class="btn" id="bIni" type="button">Nueva inspección</button>`}
       <button class="btn sec" id="bHist" type="button">Inspecciones hechas${HIST.length?` (${HIST.length})`:""}</button>
     </div>
-    ${CONFIG_OK?"":`<p class="req" style="text-align:center">No se pudo cargar la lista de personas y condominios. Abre la app con señal al menos una vez.</p>`}
+    ${CONFIG_OK?"":`<p class="req" style="text-align:center">No se pudo cargar la lista de condominios. Abre la app con señal al menos una vez.</p>`}
   </section>`;
   const bi=document.getElementById("bIni"); if(bi){ bi.disabled=!CONFIG_OK; bi.onclick=()=>go({name:"start"}); }
   const bc=document.getElementById("bCont"); if(bc) bc.onclick=()=>go({name: I.firma?"firma":"insp"});
@@ -424,17 +422,22 @@ function vHome(){
 }
 
 /* ---------- Administrador y condominio ---------- */
-let sel={admin:null, condo:null};
+let sel={nombre:null, cargo:null, condo:null};
+// Campos de nombre y cargo (se recuerdan en este teléfono)
+function camposPersonaHTML(nombre, cargo, pre){
+  return `<label class="f" for="${pre}n">Nombre<input type="text" id="${pre}n" autocomplete="name" value="${esc(nombre)}" placeholder="Nombre y apellido"></label>
+    <label class="f" for="${pre}c">Cargo<input type="text" id="${pre}c" value="${esc(cargo)}" placeholder="Ej.: COA Coordinator"></label>
+    <div class="pills">${CARGOS_SUGERIDOS.map(c=>`<button type="button" class="pill prog" data-cargo="${esc(c)}" style="border:1px solid var(--line);background:#fff;min-height:36px;padding:6px 14px;font-size:14px">${esc(c)}</button>`).join("")}</div>`;
+}
 function vStart(){
   setTop("Nueva inspección", ()=>go({name:"home"}));
-  if(sel.admin && !PERSONAS.some(p=>p.nombre===sel.admin)) sel.admin=null;
   if(sel.condo && !CONDOMINIOS.some(c=>c.id===sel.condo)) sel.condo=null;
-  if(!sel.admin){ const last=LS.get("admin"); if(PERSONAS.some(p=>p.nombre===last)) sel.admin=last; }
+  if(sel.nombre===null) sel.nombre=LS.get("nombre")||"";
+  if(sel.cargo===null) sel.cargo=LS.get("cargo")||"";
   $app.innerHTML=`<section class="block" style="padding-top:12px">
       <h3>1 · ¿Quién inspecciona?</h3>
-      <div class="admins" role="group" aria-label="Persona que inspecciona">
-        ${PERSONAS.map(p=>`<button class="adm" type="button" data-a="${esc(p.nombre)}" aria-pressed="${sel.admin===p.nombre}"><span style="display:flex;flex-direction:column">${esc(p.nombre)}<span class="hint">${esc(p.cargo)}</span></span><span class="sel">${sel.admin===p.nombre?"✓":""}</span></button>`).join("")}
-      </div>
+      ${camposPersonaHTML(sel.nombre, sel.cargo, "p")}
+      <span class="hint">Se recuerda en este teléfono. Si está mal escrito, corrígelo aquí.</span>
     </section>
     <section class="block">
       <h3>2 · Condominio a inspeccionar</h3>
@@ -443,16 +446,21 @@ function vStart(){
       </div>
     </section>
     <p class="muted" style="font-size:14px;padding-top:14px">Fecha: <strong>${fechaLarga(hoyISO())}</strong>. La hora de inicio y fin se registran solas.</p>`;
-  setFoot(`<button class="btn" id="bGo" type="button" ${sel.admin&&sel.condo?"":"disabled"}>Comenzar inspección</button>`);
-  $app.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{ sel.admin=b.dataset.a; const y=scrollY; vStart(); scrollTo(0,y); });
+  const listo=()=>sel.nombre.trim()&&sel.cargo.trim()&&sel.condo;
+  setFoot(`<button class="btn" id="bGo" type="button" ${listo()?"":"disabled"}>Comenzar inspección</button>`);
+  const upd=()=>{ document.getElementById("bGo").disabled=!listo(); };
+  document.getElementById("pn").oninput=e=>{ sel.nombre=e.target.value; upd(); };
+  document.getElementById("pc").oninput=e=>{ sel.cargo=e.target.value; upd(); };
+  $app.querySelectorAll("[data-cargo]").forEach(b=>b.onclick=()=>{ sel.cargo=b.dataset.cargo; document.getElementById("pc").value=sel.cargo; upd(); });
   $app.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{ sel.condo=b.dataset.c; const y=scrollY; vStart(); scrollTo(0,y); });
   document.getElementById("bGo").onclick=async()=>{
-    if(!sel.admin||!sel.condo) return;
-    const persona=PERSONAS.find(p=>p.nombre===sel.admin), condo=CONDOMINIOS.find(c=>c.id===sel.condo);
-    if(!persona||!condo) return;
+    if(!listo()) return;
+    const persona={nombre:sel.nombre.trim().replace(/\s+/g," "), cargo:sel.cargo.trim().replace(/\s+/g," ")}, condo=CONDOMINIOS.find(c=>c.id===sel.condo);
+    if(!condo) return;
     const b=document.getElementById("bGo"); b.disabled=true; b.textContent="Preparando…";
     const logo=await imgDatos(condo.logo);
-    LS.set("admin",sel.admin); I=nuevaInspeccion(persona, condo, logo); sel.condo=null; guardar(); go({name:"insp"});
+    LS.set("nombre",persona.nombre); LS.set("cargo",persona.cargo); sel={nombre:null,cargo:null,condo:null};
+    I=nuevaInspeccion(persona, condo, logo); guardar(); go({name:"insp"});
   };
 }
 
@@ -657,10 +665,22 @@ function vFirma(){
       ${atencion.map(p=>{ const d=I.items[p.id]; const e=ESTADOS[d.estado];
         return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding-block:8px;border-bottom:1px solid var(--line)"><div><strong>${esc(p.nombre)}</strong><div class="muted" style="font-size:14px">${esc(d.comentario)}</div></div><span class="pill ${e.cls}">${e.txt}</span></div>`;}).join("")}
     </section>`:""}
-    <section class="block"><h3>Firma de ${esc(I.admin)}</h3>
+    <section class="block"><h3>Firma</h3>
+      <div id="quien" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><strong>${esc(I.admin)}</strong><div class="muted" style="font-size:14px">${esc(cargoDe(I))}</div></div><button class="link" id="bCorr" type="button">Corregir nombre o cargo</button></div>
       <button class="sigbox ${I.firma?"signed":""}" id="bSig" type="button">${I.firma?`<img src="${I.firma}" alt="Firma"><span style="font-size:14px">Tocar para volver a firmar</span>`:`<span style="font-size:28px">✍</span>Tocar para firmar<span class="hint">La pantalla se pone en horizontal</span>`}</button>
     </section>`;
   document.getElementById("bSig").onclick=()=>abrirFirma();
+  document.getElementById("bCorr").onclick=()=>{
+    const q=document.getElementById("quien"); q.style.display="block";
+    q.innerHTML=`<div class="confirm">${camposPersonaHTML(I.admin, cargoDe(I), "q")}<div class="row2"><button class="btn sec" id="qNo" type="button">Cancelar</button><button class="btn" id="qOk" type="button">Guardar</button></div></div>`;
+    q.querySelectorAll("[data-cargo]").forEach(b=>b.onclick=()=>{ document.getElementById("qc").value=b.dataset.cargo; });
+    document.getElementById("qNo").onclick=()=>vFirma();
+    document.getElementById("qOk").onclick=()=>{
+      const n=document.getElementById("qn").value.trim().replace(/\s+/g," "), c=document.getElementById("qc").value.trim().replace(/\s+/g," ");
+      if(!n||!c){ toast("Escribe nombre y cargo"); return; }
+      I.admin=n; I.cargo=c; LS.set("nombre",n); LS.set("cargo",c); guardar(); vFirma(); toast("Nombre y cargo corregidos");
+    };
+  };
   setFoot(`${I.firma?"":`<span class="foot-note">Falta la firma para terminar</span>`}
     <button class="btn" id="bFin" type="button" ${I.firma?"":"disabled"}>Terminar inspección</button>`);
   document.getElementById("bFin").onclick=async()=>{ await cerrarInspeccion(); go({name:"final"}); };

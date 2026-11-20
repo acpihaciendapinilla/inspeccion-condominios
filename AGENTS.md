@@ -2,26 +2,21 @@
 
 App web de inspección de condominios de Hacienda Pinilla (un solo `index.html`, publicada con GitHub Pages).
 
-## Cambios de listas (condominios, logos, apartados o puntos)
+## Las listas NO se cambian en este repositorio
 
-- Modifica **solo** `configuracion.json`. Si hay un logo nuevo, agrega la imagen en `logos/`.
-- No toques `index.html`, `sw.js`, `manifest.json` ni ningún otro archivo. Si el pedido lo requiere, detente y explícalo sin hacer cambios.
-- Cambia únicamente lo que se pidió: no reordenes, no renombres, no reformatees.
-- Copia el formato de un elemento existente.
-- No cambies ni reutilices los `id` existentes. Para algo nuevo usa un id corto, en minúsculas, sin espacios ni tildes (ej.: `palmas`, `amen-8`).
-- Deja `configuracion.json` como JSON válido.
+Condominios, logos, apartados, puntos y cargos se editan en el Google Sheet
+**"Configuración – App de inspección"** (carpeta de Drive "App de inspección de condominios – PDF a Slack").
+Los logos van en la subcarpeta de Drive **"Logos condominios"** y su enlace se pega en la columna Logo.
+Si alguien pide cambiar una lista, indícale que lo haga en el Sheet (ver el manual en esa carpeta). No edites el código para eso.
+
+- Pestañas: `Condominios` (Nombre · Logo · Activo), `Puntos` (Apartado · Punto · Activo), `Cargos` (Cargo).
+- `Activo` = "No" oculta la fila. Los estados (Bueno, Malo, Urgente, No aplica) están fijos en el código.
+- La app lee el Sheet al abrir (`SHEET_ID` en `index.html`); si falla, usa la última copia buena del teléfono y,
+  si no hay ninguna, `configuracion.json` (lista de respaldo, con los logos de `logos/`).
+- Cada inspección guarda su propia copia de la configuración: cambiar el Sheet no afecta inspecciones hechas ni en curso.
+
+## Cambios de diseño o funciones
+
+- Haz solo el cambio pedido, sin reordenar ni reformatear lo demás.
+- Si cambias `index.html` o los archivos guardados sin señal, sube la versión de `CACHE` en `sw.js`.
 - Muestra el antes y el después y espera confirmación antes de subir. Mensaje de commit en español.
-
-## Formato de `configuracion.json`
-
-```json
-{
-  "condominios": [ { "id": "almendros", "nombre": "Los Almendros", "logo": "logos/los-almendros.jpg" } ],
-  "apartados":   [ { "id": "amen", "nombre": "Amenidades", "puntos": [ { "id": "amen-1", "nombre": "Piscina" } ] } ]
-}
-```
-
-- El nombre y el cargo de quien inspecciona **no** están en este archivo: cada persona los escribe en la app y quedan guardados en su teléfono.
-- `logo` es la ruta dentro de `logos/`; si queda `""`, la tarjeta muestra solo el nombre. Logos JPG o PNG, fondo blanco, menos de 500 KB, nombre en minúsculas sin espacios ni tildes.
-- El orden de `apartados` y `puntos` es el orden en la app y en el PDF.
-- Cada inspección guarda su propia copia de la configuración, así que quitar algo no afecta inspecciones ya hechas ni en curso. Si el archivo queda inválido, la app sigue usando la última versión buena.

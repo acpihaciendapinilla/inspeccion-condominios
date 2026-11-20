@@ -212,12 +212,14 @@ textarea{min-height:76px;resize:vertical}
 <script>
 /* =========================================================
    CONFIGURACIÓN
-   Los condominios y puntos NO se editan aquí:
-   están en el archivo configuracion.json (y los logos en la carpeta logos/).
-   Ver AGENTS.md.
+   Los condominios, puntos y cargos NO se editan aquí:
+   se editan en el Google Sheet "Configuración – App de inspección"
+   (los logos van en la carpeta de Drive "Logos condominios").
+   configuracion.json solo es la lista de respaldo. Ver AGENTS.md.
    ========================================================= */
+const SHEET_ID = "103hmiZhMjCS1ZWru4ZlT99uqxh4h_H4KeZjdLw1Mrgc";  // Google Sheet de configuración
 const HP = {logo:"logos/hacienda-pinilla.jpg", data:null, w:700, h:217};  // logo de Hacienda Pinilla
-const CARGOS_SUGERIDOS = ["COA Coordinator","COA Manager"];  // sugerencias al escribir el cargo
+let CARGOS_SUGERIDOS = ["COA Coordinator","COA Manager"];  // sugerencias al escribir el cargo
 let CONDOMINIOS = [];  // [{id, nombre, logo}]
 let SECCIONES = [];    // [{id, nombre, puntos:[{id, nombre}]}]
 
@@ -236,23 +238,63 @@ function validarConfig(cfg){
 function aplicarConfig(cfg){
   CONDOMINIOS = cfg.condominios.map(c=>({id:c.id, nombre:String(c.nombre).trim(), logo:c.logo?String(c.logo):""}));
   SECCIONES = cfg.apartados.map(a=>({id:a.id, nombre:String(a.nombre).trim(), puntos:a.puntos.map(p=>({id:p.id, nombre:String(p.nombre).trim()}))}));
+  if(Array.isArray(cfg.cargos) && cfg.cargos.length) CARGOS_SUGERIDOS = cfg.cargos.map(String);
+}
+
+/* ---------- Lectura del Google Sheet ---------- */
+const slug = t => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+// Enlace de Drive (…/file/d/ID/view o …?id=ID) → dirección de imagen que la app puede leer
+function logoDrive(link, nombre){
+  const t=String(link||"").trim();
+  if(!t) return "logos/"+slug(nombre)+".jpg";   // sin enlace: logo de respaldo (si existe)
+  const m=t.match(/\/d\/([\w-]{20,})/) || t.match(/[?&]id=([\w-]{20,})/);
+  return m ? "https://lh3.googleusercontent.com/d/"+m[1] : t;
+}
+function leerCSV(txt){
+  const filas=[]; let f=[], c="", q=false;
+  for(let i=0;i<txt.length;i++){ const ch=txt[i];
+    if(q){ if(ch==='"'){ if(txt[i+1]==='"'){ c+='"'; i++; } else q=false; } else c+=ch; }
+    else if(ch==='"') q=true; else if(ch===','){ f.push(c); c=""; }
+    else if(ch==='\n'||ch==='\r'){ if(ch==='\r'&&txt[i+1]==='\n') i++; f.push(c); filas.push(f); f=[]; c=""; }
+    else c+=ch; }
+  if(c!==""||f.length){ f.push(c); filas.push(f); }
+  return filas.map(r=>r.map(x=>x.trim())).filter(r=>r.some(x=>x));
+}
+async function pestana(nombre, columnas){
+  const r=await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(nombre)}`,{cache:"no-store"});
+  if(!r.ok) throw new Error("Sheet "+nombre+": "+r.status);
+  const filas=leerCSV(await r.text()); const enc=(filas.shift()||[]).map(h=>slug(h));
+  const idx=columnas.map(k=>enc.indexOf(slug(k)));
+  if(idx[0]<0) throw new Error(`La pestaña "${nombre}" no tiene la columna "${columnas[0]}"`);
+  return filas.map(r=>{ const o={}; columnas.forEach((k,i)=>o[k]=idx[i]<0?"":(r[idx[i]]||"")); return o; })
+              .filter(o=>o[columnas[0]] && slug(o.Activo||"")!=="no");
+}
+async function configDesdeSheet(){
+  const [cs,ps,cg]=await Promise.all([pestana("Condominios",["Nombre","Logo","Activo"]), pestana("Puntos",["Apartado","Punto","Activo"]), pestana("Cargos",["Cargo"]).catch(()=>[])]);
+  const vistos=new Set(), condominios=[];
+  cs.forEach(c=>{ const id=slug(c.Nombre); if(id && !vistos.has(id)){ vistos.add(id); condominios.push({id, nombre:c.Nombre, logo:logoDrive(c.Logo,c.Nombre)}); } });
+  const apartados=[], porId={};
+  ps.forEach(p=>{ if(!p.Punto) return; const aid=slug(p.Apartado)||"general";
+    if(!porId[aid]){ porId[aid]={id:aid, nombre:p.Apartado||"General", puntos:[]}; apartados.push(porId[aid]); }
+    const pid=aid+"-"+slug(p.Punto); if(pid!==aid+"-" && !porId[aid].puntos.some(x=>x.id===pid)) porId[aid].puntos.push({id:pid, nombre:p.Punto}); });
+  return {condominios, apartados, cargos:cg.map(x=>x.Cargo).filter(Boolean)};
 }
 async function cargarConfig(){
-  // 1) la versión más nueva de internet; 2) la última buena guardada en el teléfono
+  // 1) el Google Sheet; 2) la última copia buena guardada en el teléfono; 3) la lista de respaldo
   let aviso=null;
   try{
-    const r=await fetch("configuracion.json",{cache:"no-store"});
-    if(r.ok){
-      let cfg=null; try{ cfg=await r.json(); }catch(e){ cfg=null; }
-      const err=validarConfig(cfg);
-      if(!err.length){ aplicarConfig(cfg); LS.set("config",JSON.stringify(cfg)); return true; }
-      console.warn("configuracion.json con errores:",err); aviso="La configuración nueva tiene un error. Se usa la anterior.";
-    }
-  }catch(e){ console.warn("No se pudo leer configuracion.json",e); }
+    const cfg=await configDesdeSheet(); const err=validarConfig(cfg);
+    if(!err.length){ aplicarConfig(cfg); LS.set("config",JSON.stringify(cfg)); return true; }
+    console.warn("Sheet con errores:",err); aviso="La configuración del Sheet tiene un error. Se usa la anterior.";
+  }catch(e){ console.warn("No se pudo leer el Sheet",e); }
   try{ const cfg=JSON.parse(LS.get("config")||"null"); if(cfg && !validarConfig(cfg).length){ aplicarConfig(cfg); if(aviso) setTimeout(()=>toast(aviso),600); return true; } }catch(e){}
+  try{
+    const r=await fetch("configuracion.json",{cache:"no-store"});
+    if(r.ok){ const cfg=await r.json(); if(!validarConfig(cfg).length){ aplicarConfig(cfg); return true; } }
+  }catch(e){ console.warn("No se pudo leer configuracion.json",e); }
   return false;
 }
-// Convierte una imagen de la carpeta logos/ en datos para el PDF
+// Convierte un logo (de Drive o de la carpeta logos/) en datos para el PDF
 const IMG_CACHE={};
 async function imgDatos(src){
   if(!src) return null;

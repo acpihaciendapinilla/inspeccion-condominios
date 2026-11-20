@@ -4,12 +4,12 @@ App web de inspección de condominios de Hacienda Pinilla (un solo `index.html`,
 
 ## Las listas NO se cambian en este repositorio
 
-Condominios, logos, apartados, puntos y cargos se editan en el Google Sheet
+Condominios, logos, apartados, puntos y usuarios (quién inspecciona) se editan en el Google Sheet
 **"Configuración – App de inspección"** (carpeta de Drive "App de inspección de condominios – PDF a Slack").
 Los logos van en la subcarpeta de Drive **"Logos condominios"** y su enlace se pega en la columna Logo.
 Si alguien pide cambiar una lista, indícale que lo haga en el Sheet (ver el manual en esa carpeta). No edites el código para eso.
 
-- Pestañas: `Condominios` (Nombre · Logo · Activo), `Puntos` (Apartado · Punto · Activo), `Cargos` (Cargo).
+- Pestañas: `Condominios` (Nombre · Logo · Activo), `Puntos` (Apartado · Punto · Activo), `Usuarios` (Nombre · Cargo · Activo). Solo pueden inspeccionar las personas activas de `Usuarios`; en la app se elige el nombre de la lista, no se escribe.
 - `Activo` = "No" oculta la fila. Los estados (Bueno, Malo, Urgente, No aplica) están fijos en el código.
 - La app lee el Sheet al abrir (`SHEET_ID` en `index.html`); si falla, usa la última copia buena del teléfono y,
   si no hay ninguna, `configuracion.json` (lista de respaldo, con los logos de `logos/`).

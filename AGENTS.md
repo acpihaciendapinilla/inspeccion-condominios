@@ -17,8 +17,8 @@ Si alguien pide cambiar una lista, indícale que lo haga en el Sheet (ver el man
 
 ## Cómo funciona
 
-- Al marcar un punto como Malo o Urgente aparece **Asignar a proveedor** (proveedor de la lista + mensaje). El botón **+ Hallazgo** de la barra superior agrega hallazgos (título, descripción, fotos y proveedor opcional) desde cualquier pantalla de la inspección.
-- Al terminar: el PDF completo va al canal del condominio y, por cada proveedor con asignaciones, hay una imagen PNG (máx. 2 asignaciones por imagen, hasta 2 fotos cada una) para compartir o descargar.
+- Al marcar un punto como Malo o Urgente aparece **Asignar a proveedor** (proveedor de la lista + mensaje). El botón **+ Hallazgo** de la barra superior agrega hallazgos desde cualquier pantalla de la inspección: solo un detalle, hasta 4 fotos y el proveedor (opcional, sin mensaje).
+- Al terminar: el PDF completo va al canal del condominio y, por cada proveedor con asignaciones, hay un archivo en **PNG o PDF** (mismo contenido): los puntos con su mensaje y fotos, y los hallazgos solo con sus fotos (1, 2, 3 o 4, acomodadas en cuadrícula). Si es largo se reparte en varias páginas.
 
 ## Cambios de diseño o funciones
 

@@ -346,7 +346,8 @@ const ESTADOS = {
   na:      {txt:"No aplica", cls:"na",  pdf:[107,107,107]}
 };
 const NECESITA_EVIDENCIA = e => e==="malo" || e==="urgente";
-const MAX_FOTOS = 3;           // por punto y por hallazgo
+const MAX_FOTOS = 3;           // por punto
+const MAX_FOTOS_H = 4;         // por hallazgo
 const MSG_PROV = "Hola, ¿me podrías ayudar con esto? ";   // mensaje inicial para el proveedor
 const MENSAJE_FINAL = "Tu labor garantiza que cada rincón de nuestra Hacienda se mantenga en condiciones óptimas. ¡Gracias por tu compromiso con la excelencia!";
 
@@ -722,34 +723,35 @@ function vHallazgo(){
   const h=hallazgosDe(I).find(x=>x.id===view.id); if(!h) return go(view.volver||{name:"insp"});
   const n=I.hallazgos.indexOf(h)+1;
   setTop(condoDe(I).nombre, ()=>cerrarHallazgo(h));
+  const lista = !h.prov || PROVEEDORES.some(p=>p.nombre===h.prov.nombre) ? PROVEEDORES : [{nombre:h.prov.nombre,tipo:""},...PROVEEDORES];
   $app.innerHTML=`<section class="sec-head"><p class="eyebrow">Hallazgo ${n}</p><h2>Hallazgo</h2>
-      <span class="muted" style="font-size:14px">Algo que encontraste fuera de la lista de puntos. Agrega fotos y, si hace falta, asígnalo a un proveedor.</span></section>
+      <span class="muted" style="font-size:14px">Algo que encontraste fuera de la lista de puntos. Escribe un detalle corto, agrega fotos y elige el proveedor si hace falta.</span></section>
     <div class="stack">
-      <label class="f" for="h-t">Título<input type="text" id="h-t" value="${esc(h.titulo)}" placeholder="Ej.: Filial 12, desagüe tapado" maxlength="80"></label>
-      <label class="f" for="h-d"><span>Descripción <span class="hint">(opcional)</span></span><textarea id="h-d" placeholder="Detalle de lo encontrado">${esc(h.descripcion)}</textarea></label>
-      <div class="f" style="display:flex;flex-direction:column;gap:6px;font-weight:600">Fotos<span class="hint">Hasta ${MAX_FOTOS} fotos.</span>${fotosHTML(h.fotos, MAX_FOTOS, "h", "hallazgo")}</div>
-      ${asignarHTML("h",h)}
+      <label class="f" for="h-t">Detalle<textarea id="h-t" maxlength="140" placeholder="Ej.: Filial 12, desagüe tapado">${esc(h.titulo)}</textarea></label>
+      <div class="f" style="display:flex;flex-direction:column;gap:6px;font-weight:600">Fotos<span class="hint">Hasta ${MAX_FOTOS_H} fotos.</span>${fotosHTML(h.fotos, MAX_FOTOS_H, "h", "hallazgo")}</div>
+      ${PROVEEDORES.length?`<label class="f" for="h-p"><span>Proveedor <span class="hint">(opcional)</span></span>
+        <select id="h-p"><option value="">Sin proveedor</option>${lista.map(p=>`<option value="${esc(p.nombre)}" ${h.prov&&h.prov.nombre===p.nombre?"selected":""}>${esc(p.nombre)}${p.tipo?" · "+esc(p.tipo):""}</option>`).join("")}</select></label>`:""}
     </div>`;
   const y=()=>{ const v=scrollY; vHallazgo(); scrollTo(0,v); };
   const t=document.getElementById("h-t");
   t.oninput=()=>{ h.titulo=t.value; marcarInicio(); guardar(); footH(h); };
-  document.getElementById("h-d").oninput=e=>{ h.descripcion=e.target.value; marcarInicio(); guardar(); };
+  const sp=document.getElementById("h-p");
+  if(sp) sp.onchange=()=>{ h.prov=sp.value?{nombre:sp.value, mensaje:(h.prov&&h.prov.mensaje)||""}:null; marcarInicio(); guardar(); };
   const gi=$app.querySelector("[data-ph]"); if(gi) gi.onchange=async()=>{
     const f=gi.files&&gi.files[0]; if(!f) return;
-    try{ const foto=await comprimir(f); h.fotos=[...h.fotos,foto].slice(0,MAX_FOTOS); marcarInicio(); guardar(); y(); }
+    try{ const foto=await comprimir(f); h.fotos=[...h.fotos,foto].slice(0,MAX_FOTOS_H); marcarInicio(); guardar(); y(); }
     catch(e){ toast("No se pudo leer la foto. Intenta de nuevo."); }
   };
   $app.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ h.fotos.splice(Number(b.dataset.i),1); guardar(); y(); });
-  bindAsignar($app, ()=>h, ()=>y());
   footH(h);
 }
 function footH(h){
   const ok=(h.titulo||"").trim().length>0;
-  setFoot(`${ok?"":`<span class="foot-note">Falta el título</span>`}
+  setFoot(`${ok?"":`<span class="foot-note">Falta el detalle</span>`}
     <div class="row2"><button class="btn sec" id="hDel" type="button">Eliminar</button><button class="btn" id="hOk" type="button" ${ok?"":"disabled"}>Guardar</button></div>`);
   document.getElementById("hOk").onclick=()=>{ cerrarHallazgo(h); toast("Hallazgo guardado"); };
   document.getElementById("hDel").onclick=()=>{
-    setFoot(`<div class="confirm"><strong>¿Eliminar este hallazgo?</strong><span class="muted">Se borran su descripción y sus fotos.</span>
+    setFoot(`<div class="confirm"><strong>¿Eliminar este hallazgo?</strong><span class="muted">Se borran su detalle y sus fotos.</span>
       <div class="row2"><button class="btn sec" id="eNo" type="button">Cancelar</button><button class="btn danger" id="eYes" type="button">Eliminar</button></div></div>`);
     document.getElementById("eNo").onclick=()=>footH(h);
     document.getElementById("eYes").onclick=()=>{ I.hallazgos=I.hallazgos.filter(x=>x!==h); guardar(); go(view.volver||{name:"insp"}); toast("Hallazgo eliminado"); };
@@ -928,16 +930,19 @@ function solicitudesDe(rec){
   todosDe(rec).filter(p=>NECESITA_EVIDENCIA(rec.items[p.id]?.estado) && rec.items[p.id].prov)
     .sort((a,b)=>(rec.items[a.id].estado==="urgente"?0:1)-(rec.items[b.id].estado==="urgente"?0:1))
     .forEach(p=>{ const d=rec.items[p.id]; add(d.prov.nombre,{tipo:"punto", titulo:p.nombre, ctx:p.sec.nombre, estado:d.estado, obs:d.comentario||"", mensaje:d.prov.mensaje, fotos:d.fotos||[]}); });
-  hallazgosDe(rec).forEach((h,i)=>{ if(h.prov) add(h.prov.nombre,{tipo:"hallazgo", titulo:tituloH(h,i), ctx:"", estado:null, obs:h.descripcion||"", mensaje:h.prov.mensaje, fotos:h.fotos||[]}); });
+  hallazgosDe(rec).forEach((h,i)=>{ if(h.prov) add(h.prov.nombre,{tipo:"hallazgo", titulo:tituloH(h,i), ctx:"", estado:null, obs:"", mensaje:"", fotos:h.fotos||[]}); });
   return [...g].map(([nombre,items])=>({nombre,items}));
+}
+function solicitudCard(rec,g,i){
+  const env=rec.solicitudes||{}; const n=g.items.length;
+  return `<div class="sol"><div class="sol-top"><div><strong>${esc(g.nombre)}</strong><span class="muted" style="font-size:14px">${n} ${n===1?"asignación":"asignaciones"}</span></div>${env[g.nombre]?`<span class="pill prog">✓ Compartido</span>`:""}</div>
+    <div class="row2"><button class="btn" type="button" data-sol="png" data-r="${rec.id}" data-i="${i}">Imagen (PNG)</button><button class="btn sec" type="button" data-sol="pdf" data-r="${rec.id}" data-i="${i}">Documento (PDF)</button></div></div>`;
 }
 function solicitudesHTML(rec){
   const S=solicitudesDe(rec); if(!S.length) return "";
-  const env=rec.solicitudes||{};
   return `<section class="block sol-wrap"><h3>Solicitudes a proveedores</h3>
-    <span class="hint">Una imagen por proveedor. Compártela en su canal o descárgala para adjuntarla desde la galería.</span>
-    ${S.map((g,i)=>`<div class="sol"><div class="sol-top"><div><strong>${esc(g.nombre)}</strong><span class="muted" style="font-size:14px">${g.items.length} ${g.items.length===1?"asignación":"asignaciones"}</span></div>${env[g.nombre]?`<span class="pill prog">✓ Compartido</span>`:""}</div>
-      <div class="row2"><button class="btn" type="button" data-sol="share" data-r="${rec.id}" data-i="${i}">Compartir imagen</button><button class="btn sec" type="button" data-sol="down" data-r="${rec.id}" data-i="${i}">Descargar imagen</button></div></div>`).join("")}
+    <span class="hint">Elige el formato: PNG para adjuntar desde la galería, o PDF. En el teléfono se abre el menú para compartir o guardar.</span>
+    ${S.map((g,i)=>solicitudCard(rec,g,i)).join("")}
   </section>`;
 }
 function bindSolicitudes(root){
@@ -947,7 +952,7 @@ function bindSolicitudes(root){
   });
 }
 const BODY='"Source Sans 3", -apple-system, "Segoe UI", Roboto, Arial, sans-serif', DISP='"Cormorant Garamond", Georgia, "Times New Roman", serif';
-const IMG_W=1080, POR_IMAGEN=2;   // ancho de la imagen y máximo de asignaciones por imagen (para que no quede larguísima)
+const IMG_W=1080, MAXH=2700;   // ancho de la imagen y alto máximo de cada página (si hay más, se reparte en varias)
 function cargarImg(src){ return new Promise(res=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>res(null); im.src=src; }); }
 function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 function envolver(ctx,texto,maxW,maxLin){
@@ -957,7 +962,21 @@ function envolver(ctx,texto,maxW,maxLin){
   if(maxLin && lin.length>maxLin){ lin.length=maxLin; let u=lin[maxLin-1]; while(u && ctx.measureText(u+"…").width>maxW) u=u.slice(0,-1); lin[maxLin-1]=u.replace(/\s+$/,"")+"…"; }
   return lin;
 }
-// Dibuja una imagen de solicitud. Con dry=true solo mide y devuelve el alto.
+// Acomoda 1, 2, 3 o 4 fotos en una cuadrícula; devuelve el alto usado
+function grilla(ctx, imgs, x, y, w, dry){
+  const n=imgs.length; if(!n) return 0;
+  const g=16, w2=(w-g)/2; let t;
+  if(n===1) t=[[0,0,w,640]];
+  else if(n===2) t=[[0,0,w2,480],[w2+g,0,w2,480]];
+  else if(n===3) t=[[0,0,w,520],[0,536,w2,400],[w2+g,536,w2,400]];
+  else t=[[0,0,w2,440],[w2+g,0,w2,440],[0,456,w2,440],[w2+g,456,w2,440]];
+  if(!dry) imgs.slice(0,4).forEach((img,i)=>{ const [tx,ty,tw,th]=t[i];
+    ctx.save(); rr(ctx,x+tx,y+ty,tw,th,14); ctx.clip(); ctx.fillStyle="#f3f3e9"; ctx.fillRect(x+tx,y+ty,tw,th);
+    const k=Math.min(tw/img.naturalWidth,th/img.naturalHeight), iw=img.naturalWidth*k, ih=img.naturalHeight*k;
+    ctx.drawImage(img,x+tx+(tw-iw)/2,y+ty+(th-ih)/2,iw,ih); ctx.restore(); });
+  return Math.max(...t.slice(0,n).map(r=>r[1]+r[3]));
+}
+// Dibuja una página de solicitud. Con dry=true solo mide y devuelve el alto.
 function dibujarSolicitud(ctx, d, dry){
   const W=IMG_W, P=56, IW=W-2*P;
   const INK="#2f2f0e", MUTED="#6b6b52", OLIVE="#9a9a54", OLIVED="#6f6f33", LINE="#e3e3d4", SOFT="#eeeedd";
@@ -965,11 +984,9 @@ function dibujarSolicitud(ctx, d, dry){
   ctx.textBaseline="top"; ctx.textAlign="left";
   if(!dry){ ctx.fillStyle="#fff"; ctx.fillRect(0,0,W,d.alto); }
   let y=P; const lh=72;
-  // logos
   if(d.hpImg){ const w=lh*d.hpImg.naturalWidth/d.hpImg.naturalHeight; if(!dry) ctx.drawImage(d.hpImg,P,y,w,lh); }
   if(d.cdImg){ const k=Math.min(lh/d.cdImg.naturalHeight, 260/d.cdImg.naturalWidth), w=d.cdImg.naturalWidth*k, h=d.cdImg.naturalHeight*k; if(!dry) ctx.drawImage(d.cdImg,W-P-w,y+(lh-h)/2,w,h); }
   y+=lh+26; if(!dry){ ctx.fillStyle=OLIVE; ctx.fillRect(P,y,IW,3); } y+=40;
-  // título
   F(600,24); try{ ctx.letterSpacing="3px"; }catch(e){}
   if(!dry){ ctx.fillStyle=MUTED; ctx.fillText("SOLICITUD DE TRABAJO",P,y); if(d.tot>1){ ctx.textAlign="right"; ctx.fillText(`${d.pag} DE ${d.tot}`,W-P,y); ctx.textAlign="left"; } }
   try{ ctx.letterSpacing="0px"; }catch(e){}
@@ -978,80 +995,86 @@ function dibujarSolicitud(ctx, d, dry){
   y+=6; F(400,30);
   envolver(ctx,`${d.cd.nombre} · ${fechaCorta(d.rec.fecha)} · Solicita ${d.rec.admin} (${cargoDe(d.rec)})`,IW,2).forEach(l=>{ if(!dry){ ctx.fillStyle=MUTED; ctx.fillText(l,P,y); } y+=40; });
   y+=26;
-  // asignaciones
   d.items.forEach(it=>{
+    // Hallazgo: solo las fotos
+    if(it.tipo==="hallazgo"){
+      if(it.imgs.length){ y+=grilla(ctx,it.imgs,P,y,IW,dry)+30; }
+      else { F(700,40); const tl=envolver(ctx,it.titulo,IW-72,3), hb=72+tl.length*48;
+        if(!dry){ ctx.fillStyle=SOFT; rr(ctx,P,y,IW,hb,16); ctx.fill(); F(700,40); ctx.fillStyle=INK; tl.forEach((l,i)=>ctx.fillText(l,P+36,y+36+i*48)); }
+        y+=hb+30; }
+      return;
+    }
+    // Punto en Malo o Urgente: estado, mensaje, lo encontrado y fotos
     const ip=36, ix=P+ip, iw=IW-2*ip; let yy=y+ip;
-    // etiqueta
-    const e=it.estado?ESTADOS[it.estado]:null; const tag=e?e.txt:"Hallazgo";
+    const e=ESTADOS[it.estado]; const tag=e.txt;
     F(700,24); const tw=ctx.measureText(tag).width+36;
-    if(!dry){ ctx.fillStyle=e?`rgb(${e.pdf.join(",")})`:SOFT; rr(ctx,ix,yy,tw,42,21); ctx.fill(); ctx.fillStyle=e?"#fff":OLIVED; ctx.fillText(tag,ix+18,yy+9);
+    if(!dry){ ctx.fillStyle=`rgb(${e.pdf.join(",")})`; rr(ctx,ix,yy,tw,42,21); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillText(tag,ix+18,yy+9);
       if(it.ctx){ F(400,26); ctx.fillStyle=MUTED; ctx.fillText(it.ctx,ix+tw+16,yy+8); } }
     yy+=42+20;
-    // título del punto
     F(700,40); envolver(ctx,it.titulo,iw,2).forEach(l=>{ if(!dry){ ctx.fillStyle=INK; ctx.fillText(l,ix,yy); } yy+=48; });
     yy+=14;
-    // mensaje
-    F(400,34); const ml=envolver(ctx,it.mensaje,iw-56,7); const hb=28+30+ml.length*46+28;
-    if(!dry){ ctx.fillStyle=SOFT; rr(ctx,ix,yy,iw,hb,16); ctx.fill(); F(700,22); try{ctx.letterSpacing="2px";}catch(e){} ctx.fillStyle=OLIVED; ctx.fillText("MENSAJE",ix+28,yy+26); try{ctx.letterSpacing="0px";}catch(e){}
-      F(400,34); ctx.fillStyle=INK; ml.forEach((l,i)=>ctx.fillText(l,ix+28,yy+28+30+i*46)); }
-    yy+=hb+22;
-    // lo encontrado
+    if((it.mensaje||"").trim()){
+      F(400,34); const ml=envolver(ctx,it.mensaje,iw-56,7); const hb=28+30+ml.length*46+28;
+      if(!dry){ ctx.fillStyle=SOFT; rr(ctx,ix,yy,iw,hb,16); ctx.fill(); F(700,22); try{ctx.letterSpacing="2px";}catch(e){} ctx.fillStyle=OLIVED; ctx.fillText("MENSAJE",ix+28,yy+26); try{ctx.letterSpacing="0px";}catch(e){}
+        F(400,34); ctx.fillStyle=INK; ml.forEach((l,i)=>ctx.fillText(l,ix+28,yy+28+30+i*46)); }
+      yy+=hb+22;
+    }
     if((it.obs||"").trim()){
       F(400,30); const ol=envolver(ctx,it.obs,iw,3);
       if(!dry){ F(700,22); try{ctx.letterSpacing="2px";}catch(e){} ctx.fillStyle=MUTED; ctx.fillText("LO ENCONTRADO",ix,yy); try{ctx.letterSpacing="0px";}catch(e){} F(400,30); ol.forEach((l,i)=>ctx.fillText(l,ix,yy+32+i*40)); }
       yy+=32+ol.length*40+22;
     }
-    // fotos (hasta 2, grandes y completas)
-    const im=it.imgs||[];
-    if(im.length){
-      const n=im.length, bh=n===1?460:380, bw=n===1?iw:(iw-20)/2;
-      im.forEach((img,i)=>{ if(dry) return; const bx=ix+i*(bw+20);
-        ctx.save(); rr(ctx,bx,yy,bw,bh,14); ctx.clip(); ctx.fillStyle="#f3f3e9"; ctx.fillRect(bx,yy,bw,bh);
-        const k=Math.min(bw/img.naturalWidth,bh/img.naturalHeight), w=img.naturalWidth*k, h=img.naturalHeight*k; ctx.drawImage(img,bx+(bw-w)/2,yy+(bh-h)/2,w,h); ctx.restore(); });
-      yy+=bh+16;
-      if(it.extra>0){ F(400,24); if(!dry){ ctx.fillStyle=MUTED; ctx.fillText(`+ ${it.extra} ${it.extra===1?"foto más":"fotos más"} en el PDF`,ix,yy); } yy+=34; }
-    }
+    if(it.imgs.length) yy+=grilla(ctx,it.imgs,ix,yy,iw,dry)+16;
     yy+=ip-10; const ch=yy-y;
     if(!dry){ ctx.strokeStyle=LINE; ctx.lineWidth=2; rr(ctx,P,y,IW,ch,22); ctx.stroke(); }
     y+=ch+26;
   });
-  // pie
   if(!dry){ ctx.fillStyle=LINE; ctx.fillRect(P,y,IW,2); F(400,24); ctx.fillStyle=MUTED; ctx.textAlign="center"; ctx.fillText("Hacienda Pinilla · COA Administración de Condominios",W/2,y+22); ctx.textAlign="left"; }
   return y+22+24+P;
 }
-async function construirImagenes(rec, cd, hp, g){
+// Páginas (lienzos) de la solicitud de un proveedor; si hay mucho, se reparten en varias
+async function construirPaginas(rec, cd, hp, g){
   try{ await Promise.all([document.fonts.load(`600 40px ${BODY}`,"áéíóúñ"), document.fonts.load(`400 30px ${BODY}`,"áéíóúñ"), document.fonts.load(`700 30px ${BODY}`,"áéíóúñ"), document.fonts.load(`600 60px ${DISP}`,"áéíóúñ")]); }catch(e){}
   const hpImg=hp?await cargarImg(hp.data):null, cdImg=cd.data?await cargarImg(cd.data):null;
   const items=[];
-  for(const it of g.items){ const imgs=(await Promise.all(it.fotos.slice(0,2).map(f=>cargarImg(f.src)))).filter(Boolean); items.push({...it, imgs, extra:Math.max(0,it.fotos.length-2)}); }
-  const grupos=[]; for(let i=0;i<items.length;i+=POR_IMAGEN) grupos.push(items.slice(i,i+POR_IMAGEN));
-  const blobs=[];
-  for(let k=0;k<grupos.length;k++){
-    const d={rec, cd, hpImg, cdImg, prov:g.nombre, items:grupos[k], pag:k+1, tot:grupos.length, alto:0};
-    d.alto=Math.ceil(dibujarSolicitud(document.createElement("canvas").getContext("2d"), d, true));
-    const c=document.createElement("canvas"); c.width=IMG_W; c.height=d.alto; dibujarSolicitud(c.getContext("2d"), d, false);
-    blobs.push(await new Promise(res=>c.toBlob(res,"image/png")));
-  }
-  return blobs;
+  for(const it of g.items){ const imgs=(await Promise.all(it.fotos.map(f=>cargarImg(f.src)))).filter(Boolean); items.push({...it, imgs}); }
+  const base={rec, cd, hpImg, cdImg, prov:g.nombre, pag:1, tot:1, alto:0};
+  const medir=its=>Math.max(1100, Math.ceil(dibujarSolicitud(document.createElement("canvas").getContext("2d"), {...base, items:its}, true)));
+  const grupos=[]; let cur=[];
+  for(const it of items){ const t=[...cur,it]; if(cur.length && medir(t)>MAXH){ grupos.push(cur); cur=[it]; } else cur=t; }
+  if(cur.length) grupos.push(cur);
+  return grupos.map((its,k)=>{ const d={...base, items:its, pag:k+1, tot:grupos.length}; d.alto=medir(its);
+    const c=document.createElement("canvas"); c.width=IMG_W; c.height=d.alto; dibujarSolicitud(c.getContext("2d"), d, false); return c; });
 }
-async function enviarSolicitud(rec, g, modo, btn){
+function pdfDeLienzos(cvs){
+  const {jsPDF}=window.jspdf; const W=210; let doc=null;
+  cvs.forEach(c=>{ const h=W*c.height/c.width;
+    if(!doc) doc=new jsPDF({unit:"mm", format:[W,h], orientation:"portrait"}); else doc.addPage([W,h],"portrait");
+    doc.addImage(c.toDataURL("image/jpeg",0.92),"JPEG",0,0,W,h); });
+  return doc.output("blob");
+}
+async function enviarSolicitud(rec, g, formato, btn){
+  const pdf = formato==="pdf";
+  if(pdf && !window.jspdf){ toast("No se pudo cargar el generador de PDF. Revisa la señal y recarga."); return; }
   const txt=btn.textContent; btn.disabled=true; btn.textContent="Preparando…";
   try{
     const cd={...condoDe(rec)}; if(!cd.data){ const l=await imgDatos(cd.logo); if(l) Object.assign(cd,l); }
     const hp=await imgDatos(HP.logo);
-    const blobs=await construirImagenes(rec,cd,hp,g);
+    const cvs=await construirPaginas(rec,cd,hp,g);
     const limpio=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\w]+/g,"-").replace(/^-|-$/g,"");
     const base=`Solicitud_${limpio(g.nombre)}_${limpio(cd.nombre)}_${rec.fecha}`;
-    const files=blobs.map((b,i)=>new File([b], blobs.length>1?`${base}_${i+1}de${blobs.length}.png`:`${base}.png`, {type:"image/png"}));
+    let files;
+    if(pdf) files=[new File([pdfDeLienzos(cvs)], base+".pdf", {type:"application/pdf"})];
+    else { const blobs=await Promise.all(cvs.map(c=>new Promise(r=>c.toBlob(r,"image/png")))); files=blobs.map((b,i)=>new File([b], blobs.length>1?`${base}_${i+1}de${blobs.length}.png`:`${base}.png`, {type:"image/png"})); }
     const titulo=`Solicitud para ${g.nombre} · ${cd.nombre} · ${fechaCorta(rec.fecha)}`;
     let hecho=false, enviado=false;
-    if(modo==="share" && navigator.canShare){
+    if(navigator.canShare){
       try{ if(navigator.canShare({files})){ await navigator.share({files,title:titulo,text:titulo}); hecho=true; enviado=true; } }
       catch(e){ if(e&&e.name==="AbortError") hecho=true; }
     }
     if(!hecho){
       for(const f of files){ const url=URL.createObjectURL(f); const a=document.createElement("a"); a.href=url; a.download=f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); await new Promise(r=>setTimeout(r,350)); }
-      toast(files.length>1?"Imágenes descargadas":"Imagen descargada"); enviado=true;
+      toast(pdf?"PDF descargado":(files.length>1?"Imágenes descargadas":"Imagen descargada")); enviado=true;
     }
     if(enviado){
       (rec.solicitudes ||= {})[g.nombre]=new Date().toISOString();
@@ -1059,7 +1082,7 @@ async function enviarSolicitud(rec, g, modo, btn){
       await DB.set("historial",HIST); if(I && I.id===rec.id) await DB.set("actual",I);
       const y=scrollY; if(view.name==="final"){ vFinal(); scrollTo(0,y); } else if(view.name==="hist"){ vHist(); scrollTo(0,y); }
     }
-  }catch(e){ console.error(e); toast("No se pudo preparar la imagen. Intenta de nuevo."); }
+  }catch(e){ console.error(e); toast("No se pudo preparar el archivo. Intenta de nuevo."); }
   finally{ if(btn.isConnected){ btn.disabled=false; btn.textContent=txt; } }
 }
 
@@ -1080,7 +1103,7 @@ function vHist(){
       return `<li><div class="hist-top"><img src="${logoDe(cd)}" alt=""><div><strong>${esc(cd.nombre)}</strong><span class="muted tnum" style="font-size:14px">${fechaCorta(h.fecha)} · ${hora(h.inicio)} – ${hora(h.fin)} · ${esc(h.admin)}</span></div></div>
         <div class="pills">${h.compartido?`<span class="pill prog">✓ Compartido</span>`:`<span class="pill na">Sin compartir</span>`}${c.urgente?`<span class="pill urg">${c.urgente} urgente</span>`:""}${c.malo?`<span class="pill bad">${c.malo} malo</span>`:""}</div>
         <div class="sol-btns"><button class="btn sec" type="button" data-pdf="${h.id}">Compartir PDF</button>
-        ${solicitudesDe(h).map((g,i)=>`<button class="btn sec" type="button" data-sol="share" data-r="${h.id}" data-i="${i}">Imagen para ${esc(g.nombre)}${h.solicitudes&&h.solicitudes[g.nombre]?" ✓":""}</button>`).join("")}</div></li>`;}).join("")}</ul>`;
+        ${solicitudesDe(h).map((g,i)=>solicitudCard(h,g,i)).join("")}</div></li>`;}).join("")}</ul>`;
   $app.querySelectorAll("[data-pdf]").forEach(b=>b.onclick=()=>compartirPDF(HIST.find(h=>h.id===b.dataset.pdf), b));
   bindSolicitudes($app);
   const bl=document.getElementById("bLimpiar"); if(bl) bl.onclick=()=>{
@@ -1102,12 +1125,12 @@ function construirPDF(rec, cd, hp){
   const c=conteos(rec); const cargo=cargoDe(rec);
   const titulo=(t)=>{ espacio(14); doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(...OLIVED); doc.text(t,M,y); y+=2; doc.setDrawColor(...OLIVE); doc.setLineWidth(0.4); doc.line(M,y,W-M,y); y+=6; };
   const fotosFila=(fotos)=>{ if(!fotos.length) return; let fx=M; const bh=38;
-    fotos.forEach(f=>{ const fw=Math.min(56,bh*f.w/f.h), fh=fw*f.h/f.w; try{ doc.addImage(f.src,"JPEG",fx,y,fw,fh); }catch(err){} fx+=fw+4; }); y+=bh+4; };
-  const altoProv=(prov)=>{ if(!prov) return 0; doc.setFont("helvetica","normal"); doc.setFontSize(9.2); return 12+doc.splitTextToSize(prov.mensaje,CW-8).length*4.3; };
-  const cajaProv=(prov)=>{ if(!prov) return; doc.setFont("helvetica","normal"); doc.setFontSize(9.2); const ml=doc.splitTextToSize(prov.mensaje,CW-8); const hh=9+ml.length*4.3;
+    fotos.forEach(f=>{ const fw=Math.min(56,bh*f.w/f.h), fh=fw*f.h/f.w; if(fx+fw>W-M+0.1){ fx=M; y+=bh+4; } try{ doc.addImage(f.src,"JPEG",fx,y,fw,fh); }catch(err){} fx+=fw+4; }); y+=bh+4; };
+  const altoProv=(prov)=>{ if(!prov) return 0; if(!(prov.mensaje||"").trim()) return 12; doc.setFont("helvetica","normal"); doc.setFontSize(9.2); return 12+doc.splitTextToSize(prov.mensaje,CW-8).length*4.3; };
+  const cajaProv=(prov)=>{ if(!prov) return; doc.setFont("helvetica","normal"); doc.setFontSize(9.2); const ml=(prov.mensaje||"").trim()?doc.splitTextToSize(prov.mensaje,CW-8):[]; const hh=ml.length?9+ml.length*4.3:8;
     doc.setFillColor(...SOFT); doc.roundedRect(M,y,CW,hh,1.5,1.5,"F");
     doc.setFont("helvetica","bold"); doc.setFontSize(8.8); doc.setTextColor(...OLIVED); doc.text("Asignado a: "+prov.nombre,M+4,y+5);
-    doc.setFont("helvetica","normal"); doc.setFontSize(9.2); doc.setTextColor(...INK); doc.text(ml,M+4,y+9.6); y+=hh+3; };
+    if(ml.length){ doc.setFont("helvetica","normal"); doc.setFontSize(9.2); doc.setTextColor(...INK); doc.text(ml,M+4,y+9.6); } y+=hh+3; };
   const pill=(e,xr,yy)=>{ doc.setFontSize(8.5); doc.setFont("helvetica","bold"); const tw=doc.getTextWidth(e.txt)+6; doc.setFillColor(...e.pdf); doc.roundedRect(xr-tw,yy-4.6,tw,6.2,1.8,1.8,"F"); doc.setTextColor(255,255,255); doc.text(e.txt,xr-tw/2,yy-0.3,{align:"center"}); };
 
   // Encabezado
@@ -1181,7 +1204,7 @@ function construirPDF(rec, cd, hp){
       titulo("Hallazgos");
       hs.forEach((h,i)=>{
         const dl=h.descripcion?doc.splitTextToSize(h.descripcion,CW-4):[];
-        espacio(12+dl.length*4.5+(h.fotos.length?44:0)+altoProv(h.prov));
+        espacio(12+dl.length*4.5+(h.fotos.length>2?90:h.fotos.length?44:0)+altoProv(h.prov));
         doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(...INK); doc.text(tituloH(h,i),M,y+1); y+=7;
         if(dl.length){ doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...INK); doc.text(dl,M+2,y); y+=dl.length*4.5+2; }
         fotosFila(h.fotos); cajaProv(h.prov);

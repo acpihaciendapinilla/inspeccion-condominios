@@ -45,6 +45,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .top{position:sticky;top:0;padding-top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 .top-in{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:10px;display:flex;align-items:center;gap:12px;min-height:56px}
 .top-in img{height:26px;width:auto}
+.top-in img[hidden]{display:none}
 .top-title{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .back{border:0;background:none;color:var(--olive-dark);font-weight:600;padding:8px 4px}
 
@@ -64,7 +65,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 
 /* Formularios */
 label.f{display:flex;flex-direction:column;gap:6px;text-align:left;font-weight:600}
-input[type=text],textarea{font:inherit;width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--bg);color:var(--ink)}
+input[type=text],textarea,select{font:inherit;width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--bg);color:var(--ink)}
 textarea{min-height:76px;resize:vertical}
 .block{display:flex;flex-direction:column;gap:10px;padding-top:18px}
 .block>h3{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--olive-dark)}
@@ -142,6 +143,22 @@ textarea{min-height:76px;resize:vertical}
 .yn button[aria-pressed=true]{background:var(--olive-dark);border-color:var(--olive-dark);color:#fff}
 .hint{font-size:13px;color:var(--muted);font-weight:400}
 
+/* Hallazgos y proveedores */
+.hbtn{flex:none;border:0;border-radius:99px;background:var(--olive-dark);color:#fff;font-weight:600;font-size:14px;padding:7px 12px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.hbtn[hidden],.hbtn b[hidden]{display:none}
+.hbtn b{background:#fff;color:var(--olive-dark);border-radius:99px;min-width:20px;height:20px;font-size:12px;display:inline-grid;place-items:center;padding:0 5px}
+.asig{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.asig.ok{border-color:var(--olive)}
+.asig-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.asig-msg{font-size:14px;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.asig-btn{min-height:46px;font-size:16px}
+.sol{border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--bg)}
+.sol-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sol-top>div{display:flex;flex-direction:column}
+.sol .btn,.hist .sol-btns .btn{min-height:46px;font-size:15px}
+.sol-wrap{width:100%;text-align:left}
+.sol-btns{display:flex;flex-direction:column;gap:8px}
+
 /* Barra inferior fija */
 .foot{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--bg);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
 .foot-in{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:12px;display:flex;flex-direction:column;gap:8px}
@@ -198,6 +215,7 @@ textarea{min-height:76px;resize:vertical}
   <div class="top-in">
     <button class="back" id="backBtn" type="button">‹ Atrás</button>
     <div class="top-title" id="topTitle"></div>
+    <button class="hbtn" id="hallBtn" type="button" hidden>+ Hallazgo<b id="hallN" hidden></b></button>
     <img id="topLogo" alt="Hacienda Pinilla">
   </div>
 </header>
@@ -216,14 +234,15 @@ textarea{min-height:76px;resize:vertical}
 <script>
 /* =========================================================
    CONFIGURACIÓN
-   Los condominios, puntos y usuarios NO se editan aquí:
+   Los condominios, puntos, usuarios y proveedores NO se editan aquí:
    se editan en el Google Sheet "Configuración – App de inspección"
    (los logos van en la carpeta de Drive "Logos condominios").
    configuracion.json solo es la lista de respaldo. Ver AGENTS.md.
    ========================================================= */
-const SHEET_ID = "1gSNmnSNDffIgQJHXW0r_PcmqnOOzeu1j6lKmE16z2U4";  // Google Sheet de configuración
+const SHEET_ID = "1_cC3xL4CgjAVVSRN_EswaJyKmm9pHPzcSJYrMCXdknc";  // Google Sheet de configuración
 const HP = {logo:"logos/hacienda-pinilla.jpg", data:null, w:700, h:217};  // logo de Hacienda Pinilla
 let USUARIOS = [];     // [{id, nombre, cargo}] quienes pueden inspeccionar
+let PROVEEDORES = [];  // [{nombre, tipo}] a quienes se les puede asignar un trabajo
 let CONDOMINIOS = [];  // [{id, nombre, logo}]
 let SECCIONES = [];    // [{id, nombre, puntos:[{id, nombre}]}]
 
@@ -234,6 +253,7 @@ function validarConfig(cfg){
   const ids=new Set();
   const unico=(id,que)=>{ if(!id||typeof id!=="string") err.push(`${que} sin id`); else if(ids.has(id)) err.push(`id repetido: ${id}`); else ids.add(id); };
   lista("usuarios").forEach((u,i)=>{ if(!u||!String(u.nombre||"").trim()||!String(u.cargo||"").trim()) err.push(`Usuario ${i+1} sin nombre o cargo`); });
+  if(cfg.proveedores!==undefined){ if(!Array.isArray(cfg.proveedores)) err.push('La lista "proveedores" no es válida'); else cfg.proveedores.forEach((p,i)=>{ if(!p||!String(p.nombre||"").trim()) err.push(`Proveedor ${i+1} sin nombre`); }); }
   lista("condominios").forEach((c,i)=>{ unico(c&&c.id,`Condominio ${i+1}`); if(!c||!String(c.nombre||"").trim()) err.push(`Condominio ${i+1} sin nombre`); });
   lista("apartados").forEach((a,i)=>{ unico(a&&a.id,`Apartado ${i+1}`); if(!a||!String(a.nombre||"").trim()) err.push(`Apartado ${i+1} sin nombre`);
     if(!a||!Array.isArray(a.puntos)||!a.puntos.length) err.push(`Apartado ${i+1} sin puntos`);
@@ -244,6 +264,7 @@ function aplicarConfig(cfg){
   CONDOMINIOS = cfg.condominios.map(c=>({id:c.id, nombre:String(c.nombre).trim(), logo:c.logo?String(c.logo):""}));
   SECCIONES = cfg.apartados.map(a=>({id:a.id, nombre:String(a.nombre).trim(), puntos:a.puntos.map(p=>({id:p.id, nombre:String(p.nombre).trim()}))}));
   USUARIOS = cfg.usuarios.map(u=>({id:slug(u.nombre), nombre:String(u.nombre).trim(), cargo:String(u.cargo).trim()}));
+  PROVEEDORES = (cfg.proveedores||[]).map(p=>({nombre:String(p.nombre).trim(), tipo:String(p.tipo||"").trim()}));
 }
 
 /* ---------- Lectura del Google Sheet ---------- */
@@ -265,17 +286,17 @@ function leerCSV(txt){
   if(c!==""||f.length){ f.push(c); filas.push(f); }
   return filas.map(r=>r.map(x=>x.trim())).filter(r=>r.some(x=>x));
 }
-async function pestana(nombre, columnas){
+async function pestana(nombre, columnas, todas){
   const r=await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(nombre)}`,{cache:"no-store"});
   if(!r.ok) throw new Error("Sheet "+nombre+": "+r.status);
   const filas=leerCSV(await r.text()); const enc=(filas.shift()||[]).map(h=>slug(h));
   const idx=columnas.map(k=>enc.indexOf(slug(k)));
-  if(idx[0]<0) throw new Error(`La pestaña "${nombre}" no tiene la columna "${columnas[0]}"`);
+  if(idx[0]<0 || (todas && idx.some(i=>i<0))) throw new Error(`La pestaña "${nombre}" no tiene las columnas esperadas`);
   return filas.map(r=>{ const o={}; columnas.forEach((k,i)=>o[k]=idx[i]<0?"":(r[idx[i]]||"")); return o; })
               .filter(o=>o[columnas[0]] && slug(o.Activo||"")!=="no");
 }
 async function configDesdeSheet(){
-  const [cs,ps,cg]=await Promise.all([pestana("Condominios",["Nombre","Logo","Activo"]), pestana("Puntos",["Apartado","Punto","Activo"]), pestana("Usuarios",["Nombre","Cargo","Activo"])]);
+  const [cs,ps,cg,pv]=await Promise.all([pestana("Condominios",["Nombre","Logo","Activo"]), pestana("Puntos",["Apartado","Punto","Activo"]), pestana("Usuarios",["Nombre","Cargo","Activo"]), pestana("Proveedores",["Nombre","Tipo","Activo"],true)]);
   const vistos=new Set(), condominios=[];
   cs.forEach(c=>{ const id=slug(c.Nombre); if(id && !vistos.has(id)){ vistos.add(id); condominios.push({id, nombre:c.Nombre, logo:logoDrive(c.Logo,c.Nombre)}); } });
   const apartados=[], porId={};
@@ -283,7 +304,8 @@ async function configDesdeSheet(){
     if(!porId[aid]){ porId[aid]={id:aid, nombre:p.Apartado||"General", puntos:[]}; apartados.push(porId[aid]); }
     const pid=aid+"-"+slug(p.Punto); if(pid!==aid+"-" && !porId[aid].puntos.some(x=>x.id===pid)) porId[aid].puntos.push({id:pid, nombre:p.Punto}); });
   const usuarios=[]; cg.forEach(u=>{ if(u.Cargo && !usuarios.some(x=>slug(x.nombre)===slug(u.Nombre))) usuarios.push({nombre:u.Nombre, cargo:u.Cargo}); });
-  return {condominios, apartados, usuarios};
+  const proveedores=[]; pv.forEach(p=>{ if(!proveedores.some(x=>slug(x.nombre)===slug(p.Nombre))) proveedores.push({nombre:p.Nombre, tipo:p.Tipo}); });
+  return {condominios, apartados, usuarios, proveedores};
 }
 async function cargarConfig(){
   // 1) el Google Sheet; 2) la última copia buena guardada en el teléfono; 3) la lista de respaldo
@@ -324,8 +346,8 @@ const ESTADOS = {
   na:      {txt:"No aplica", cls:"na",  pdf:[107,107,107]}
 };
 const NECESITA_EVIDENCIA = e => e==="malo" || e==="urgente";
-const MAX_FOTOS = 3;           // por punto
-const MAX_FOTOS_GENERAL = 5;   // evidencia fotográfica general
+const MAX_FOTOS = 3;           // por punto y por hallazgo
+const MSG_PROV = "Hola, ¿me podrías ayudar con esto? ";   // mensaje inicial para el proveedor
 const MENSAJE_FINAL = "Tu labor garantiza que cada rincón de nuestra Hacienda se mantenga en condiciones óptimas. ¡Gracias por tu compromiso con la excelencia!";
 
 /* ===================== Almacenamiento (en el celular) ===================== */
@@ -386,7 +408,7 @@ function nuevaInspeccion(persona, condo, logo){
   return {id:"i"+Date.now(), admin:persona.nombre, cargo:persona.cargo, condo:condo.id,
     condoInfo:{id:condo.id, nombre:condo.nombre, logo:condo.logo, data:logo?logo.data:null, w:logo?logo.w:1, h:logo?logo.h:1},
     secciones:JSON.parse(JSON.stringify(SECCIONES)), fecha:hoyISO(), creado:new Date().toISOString(), inicio:null, fin:null,
-    items:{}, cierre:{hallazgos:[],fotos:[],proveedor:null,proveedores:""},
+    items:{}, hallazgos:[], solicitudes:{},
     firma:null, cerrado:false, compartido:null};
 }
 function itemCompleto(d){
@@ -394,12 +416,23 @@ function itemCompleto(d){
   if(NECESITA_EVIDENCIA(d.estado)) return (d.comentario||"").trim().length>0 && (d.fotos||[]).length>0;
   return true;
 }
-const cierreCompleto = rec => rec.cierre.proveedor==="no" || (rec.cierre.proveedor==="si" && rec.cierre.proveedores.trim().length>0);
+const uid = () => "h"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// Hallazgos: algo que se encuentra fuera de la lista de puntos (título, descripción, fotos y, si hace falta, proveedor)
+const hallazgosDe = rec => Array.isArray(rec.hallazgos) ? rec.hallazgos : [];
+const tituloH = (h,i) => (h.titulo||"").trim() || ("Hallazgo "+(i+1));
+// Una inspección empezada con la versión anterior (con el apartado de hallazgos) se pasa al formato nuevo
+function migrar(r){
+  if(Array.isArray(r.hallazgos)) return;
+  const c=r.cierre||{};
+  const hs=(c.hallazgos||[]).filter(h=>(h.titulo||"").trim()||(h.descripcion||"").trim()).map(h=>({id:uid(),titulo:h.titulo||"",descripcion:h.descripcion||"",fotos:[],prov:null}));
+  if((c.fotos||[]).length) hs.push({id:uid(),titulo:"Evidencia general",descripcion:(c.proveedor==="si"&&c.proveedores)?"Proveedor(es): "+c.proveedores:"",fotos:c.fotos.slice(0,MAX_FOTOS),prov:null});
+  r.hallazgos=hs; r.solicitudes=r.solicitudes||{};
+}
 function avanceSec(s, rec=I){ const hechos=s.puntos.filter(p=>itemCompleto(rec.items[p.id])).length; return {hechos, n:s.puntos.length}; }
 function avanceTotal(rec=I){
   const T=todosDe(rec);
-  const hechos = T.filter(p=>itemCompleto(rec.items[p.id])).length + (cierreCompleto(rec)?1:0);
-  return {hechos, n:T.length+1};
+  const hechos = T.filter(p=>itemCompleto(rec.items[p.id])).length;
+  return {hechos, n:T.length};
 }
 function conteos(rec){
   const c={bueno:0,malo:0,urgente:0,na:0,total:0};
@@ -420,23 +453,28 @@ function toast(msg){
   const t=document.getElementById("toast"); t.textContent=msg; t.hidden=false;
   clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2800);
 }
-function setTop(title, back){
+function setTop(title, back, hall){
   if(!title){ $top.hidden=true; return; }
   $top.hidden=false; document.getElementById("topTitle").textContent=title;
   document.getElementById("backBtn").onclick = back;
+  const hb=document.getElementById("hallBtn"), hn=document.getElementById("hallN");
+  hb.hidden=!(hall && I);
+  document.getElementById("topLogo").hidden=!hb.hidden;   // con el botón de hallazgo, el nombre del condominio necesita el espacio del logo
+  if(!hb.hidden){ const n=hallazgosDe(I).length; hn.textContent=n; hn.hidden=!n; hb.setAttribute("aria-label","Agregar hallazgo"+(n?` (${n} registrados)`:"")); }
 }
+document.getElementById("hallBtn").onclick=()=>abrirHallazgo();
 function setFoot(html){
   if(!html){ $foot.hidden=true; $footIn.innerHTML=""; return; }
   $foot.hidden=false; $footIn.innerHTML=html;
 }
-function go(v){ view=v; render(); window.scrollTo(0,0); }
+function go(v){ view=v; UI.prov=null; render(); window.scrollTo(0,0); }
 function render(){
   const v=view.name;
   if(v==="home") return vHome();
   if(v==="start") return vStart();
   if(v==="insp") return vInsp();
   if(v==="sec") return vSec(view.id);
-  if(v==="cierre") return vCierre();
+  if(v==="hallazgo") return vHallazgo();
   if(v==="firma") return vFirma();
   if(v==="final") return vFinal();
   if(v==="hist") return vHist();
@@ -511,24 +549,27 @@ function vStart(){
 /* ---------- Resumen de secciones ---------- */
 function vInsp(){
   const c=condoDe(I);
-  setTop(c.nombre, ()=>go({name:"home"}));
-  const a=avanceTotal(); const pct=Math.round(a.hechos/a.n*100);
+  setTop(c.nombre, ()=>go({name:"home"}), true);
+  const a=avanceTotal(); const pct=a.n?Math.round(a.hechos/a.n*100):0;
+  const hall=hallazgosDe(I);
   const cnt=conteos(I);
   $app.innerHTML=`<section class="ihead"><img src="${logoDe(c)}" alt=""><div><p class="eyebrow">${esc(I.admin)} · ${fechaCorta(I.fecha)}</p><h2>${esc(c.nombre)}</h2></div></section>
     <section class="summary">
       <div style="display:flex;justify-content:space-between;align-items:baseline"><strong style="font-size:18px">${a.hechos} de ${a.n} listos</strong><span class="muted tnum">${pct}%</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="pills">${cnt.urgente?`<span class="pill urg">${cnt.urgente} urgente</span>`:""}${cnt.malo?`<span class="pill bad">${cnt.malo} malo</span>`:""}</div>
-      <span class="muted" style="font-size:14px">Entra a cada apartado en el orden que te convenga. Lo que no exista en este condominio, márcalo como <strong>No aplica</strong>.</span>
+      <span class="muted" style="font-size:14px">Entra a cada apartado en el orden que te convenga. Lo que no exista en este condominio, márcalo como <strong>No aplica</strong>. ¿Algo fuera de la lista? Toca <strong>+ Hallazgo</strong>, arriba.</span>
     </section>
     <div class="secs">
       ${secsDe(I).map((s,i)=>{ const v=avanceSec(s); const done=v.hechos===v.n;
         return `<button class="scard ${done?"done":""}" type="button" data-s="${s.id}"><span class="num">${done?"✓":i+1}</span><span class="txt"><strong>${esc(s.nombre)}</strong><span class="muted tnum" style="font-size:14px">${v.hechos} de ${v.n} puntos</span></span><span class="chev">›</span></button>`;}).join("")}
-      <button class="scard ${cierreCompleto(I)?"done":""}" type="button" id="bCierre"><span class="num">${cierreCompleto(I)?"✓":secsDe(I).length+1}</span><span class="txt"><strong>Hallazgos y seguimiento</strong><span class="muted" style="font-size:14px">Proyecto especial, filiales, fotos y proveedores</span></span><span class="chev">›</span></button>
     </div>
+    ${hall.length?`<section class="block"><h3>Hallazgos</h3><div class="secs">
+      ${hall.map((h,i)=>`<button class="scard" type="button" data-h="${h.id}"><span class="num">${i+1}</span><span class="txt"><strong>${esc(tituloH(h,i))}</strong><span class="muted" style="font-size:14px">${h.fotos.length} ${h.fotos.length===1?"foto":"fotos"}${h.prov?" · "+esc(h.prov.nombre):""}</span></span><span class="chev">›</span></button>`).join("")}
+    </div></section>`:""}
     <div id="discard" style="padding-top:12px"><button class="btn ghost" id="bDisc" type="button">Descartar esta inspección</button></div>`;
   $app.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>go({name:"sec",id:b.dataset.s}));
-  document.getElementById("bCierre").onclick=()=>go({name:"cierre"});
+  $app.querySelectorAll("[data-h]").forEach(b=>b.onclick=()=>abrirHallazgo(b.dataset.h));
   document.getElementById("bDisc").onclick=()=>{
     document.getElementById("discard").innerHTML=`<div class="confirm"><strong>¿Descartar la inspección?</strong><span class="muted">Se borran los datos y las fotos de esta inspección. No se puede deshacer.</span>
       <div class="row2"><button class="btn sec" id="dNo" type="button">Cancelar</button><button class="btn danger" id="dYes" type="button">Descartar</button></div></div>`;
@@ -555,6 +596,7 @@ function itemHTML(p){
       </label>
       ${fotosHTML(fotos, MAX_FOTOS, p.id, p.nombre)}
       ${faltas.length?`<span class="req">Falta: ${faltas.join(" y ")}</span>`:""}
+      ${asignarHTML(p.id,d)}
     </div>`;
   } else if(d.estado){
     extra=`<details ${d.comentario?"open":""}><summary class="muted" style="font-size:14px;cursor:pointer">Agregar comentario (opcional)</summary>
@@ -575,8 +617,8 @@ function fotosHTML(fotos, max, key, nombre){
 function vSec(id){
   const S=secsDe(I); const s=S.find(x=>x.id===id); const idx=S.indexOf(s);
   if(!s) return go({name:"insp"});
-  setTop(condoDe(I).nombre, ()=>go({name:"insp"}));
-  $app.innerHTML=`<section class="sec-head"><p class="eyebrow">Apartado ${idx+1} de ${S.length+1}</p><h2>${esc(s.nombre)}</h2><span class="muted tnum" id="secMeta"></span></section>
+  setTop(condoDe(I).nombre, ()=>go({name:"insp"}), true);
+  $app.innerHTML=`<section class="sec-head"><p class="eyebrow">Apartado ${idx+1} de ${S.length}</p><h2>${esc(s.nombre)}</h2><span class="muted tnum" id="secMeta"></span></section>
     <div class="items">${s.puntos.map(itemHTML).join("")}</div>`;
   bindSec(s);
 }
@@ -585,9 +627,9 @@ function footSec(s){
   const v=avanceSec(s); const falta=v.n-v.hechos;
   const S=secsDe(I); const sig=S[S.indexOf(s)+1];
   setFoot(`${falta?`<span class="foot-note">Faltan ${falta} ${falta===1?"punto":"puntos"} en este apartado</span>`:""}
-    <div class="row2"><button class="btn sec" id="bVolver" type="button">Apartados</button><button class="btn" id="bSig" type="button">${sig?"Siguiente ›":"Hallazgos ›"}</button></div>`);
+    <div class="row2"><button class="btn sec" id="bVolver" type="button">Apartados</button><button class="btn" id="bSig" type="button">${sig?"Siguiente ›":"Resumen ›"}</button></div>`);
   document.getElementById("bVolver").onclick=()=>go({name:"insp"});
-  document.getElementById("bSig").onclick=()=>go(sig?{name:"sec",id:sig.id}:{name:"cierre"});
+  document.getElementById("bSig").onclick=()=>go(sig?{name:"sec",id:sig.id}:{name:"insp"});
 }
 function refrescarItem(s,pid){
   const p=s.puntos.find(x=>x.id===pid);
@@ -600,8 +642,11 @@ function bindSec(s){
   metaSec(s); footSec(s);
   $app.querySelectorAll("[data-e]").forEach(b=>b.onclick=()=>{
     const pid=b.dataset.it; const d=(I.items[pid] ||= {fotos:[],comentario:""});
-    d.estado=b.dataset.e; marcarInicio(); guardar(); refrescarItem(s,pid);
+    d.estado=b.dataset.e;
+    if(!NECESITA_EVIDENCIA(d.estado)){ if(d.prov) toast("Se quitó la asignación al proveedor"); d.prov=null; if(UI.prov&&UI.prov.key===pid) UI.prov=null; }
+    marcarInicio(); guardar(); refrescarItem(s,pid);
   });
+  bindAsignar($app, k=>I.items[k], k=>refrescarItem(s,k));
   $app.querySelectorAll("[data-c]").forEach(t=>t.oninput=()=>{
     const pid=t.dataset.c; const d=(I.items[pid] ||= {fotos:[],comentario:""});
     const antes=itemCompleto(d); d.comentario=t.value; guardar();
@@ -618,54 +663,97 @@ function bindSec(s){
   });
 }
 
-/* ---------- Hallazgos y seguimiento ---------- */
-// Hallazgos libres: cada uno con título y, si hace falta, una descripción
-const hallazgosDe = rec => Array.isArray(rec.cierre.hallazgos) ? rec.cierre.hallazgos : [];
-const hallazgosLlenos = rec => hallazgosDe(rec).filter(h => (h.titulo||"").trim() || (h.descripcion||"").trim());
-function vCierre(){
-  setTop(condoDe(I).nombre, ()=>go({name:"insp"}));
-  const c=I.cierre;
-  $app.innerHTML=`<section class="sec-head"><p class="eyebrow">Apartado ${secsDe(I).length+1} de ${secsDe(I).length+1}</p><h2>Hallazgos y seguimiento</h2>
-      <span class="muted" style="font-size:14px">Agrega los hallazgos que encontraste (proyecto especial, filiales, lo que sea relevante). Si no hay ninguno, sigue con las preguntas de abajo.</span></section>
+/* ---------- Asignar a un proveedor (puntos en Malo o Urgente y hallazgos) ---------- */
+const UI = {prov:null};   // borrador abierto: {key, nombre, mensaje, error}
+function asignarHTML(key, o){
+  if(!PROVEEDORES.length) return "";
+  const b = UI.prov && UI.prov.key===key ? UI.prov : null;
+  if(b){
+    const lista = PROVEEDORES.some(p=>p.nombre===b.nombre) || !b.nombre ? PROVEEDORES : [{nombre:b.nombre,tipo:""},...PROVEEDORES];
+    return `<div class="asig"><strong>Asignar a proveedor</strong>
+      <label class="f" for="pv-n" style="font-size:15px">Proveedor
+        <select id="pv-n" data-pn><option value="">Elige un proveedor</option>${lista.map(p=>`<option value="${esc(p.nombre)}" ${b.nombre===p.nombre?"selected":""}>${esc(p.nombre)}${p.tipo?" · "+esc(p.tipo):""}</option>`).join("")}</select></label>
+      <label class="f" for="pv-m" style="font-size:15px">Mensaje para el proveedor
+        <textarea id="pv-m" data-pm maxlength="500" placeholder="Qué necesitas que haga">${esc(b.mensaje)}</textarea></label>
+      ${b.error?`<span class="req">${esc(b.error)}</span>`:""}
+      <div class="row2"><button class="btn sec" type="button" data-pc>Cancelar</button><button class="btn" type="button" data-ps>Guardar</button></div></div>`;
+  }
+  if(o.prov){
+    return `<div class="asig ok"><div class="asig-top"><span class="pill prog">Asignado a ${esc(o.prov.nombre)}</span>
+      <span><button class="link" type="button" data-pe="${key}">Editar</button> <button class="link" type="button" data-pq="${key}" style="color:var(--urg);margin-left:10px">Quitar</button></span></div>
+      <p class="asig-msg">${esc(o.prov.mensaje)}</p></div>`;
+  }
+  return `<button class="btn sec asig-btn" type="button" data-pa="${key}">Asignar a proveedor</button>`;
+}
+// ownerDe(key) devuelve el punto u hallazgo; refrescar(key) vuelve a dibujarlo
+function bindAsignar(root, ownerDe, refrescar){
+  root.querySelectorAll("[data-pa],[data-pe]").forEach(b=>b.onclick=()=>{
+    const key=b.dataset.pa||b.dataset.pe; const o=ownerDe(key); if(!o) return;
+    const antes=UI.prov&&UI.prov.key;
+    UI.prov={key, nombre:o.prov?o.prov.nombre:"", mensaje:o.prov?o.prov.mensaje:MSG_PROV, error:""};
+    if(antes && antes!==key) refrescar(antes);
+    refrescar(key);
+    const m=document.getElementById("pv-m"); if(m){ m.focus(); try{ m.setSelectionRange(m.value.length,m.value.length); }catch(e){} }
+  });
+  root.querySelectorAll("[data-pq]").forEach(b=>b.onclick=()=>{ const o=ownerDe(b.dataset.pq); if(!o) return; o.prov=null; guardar(); refrescar(b.dataset.pq); });
+  const sinError=()=>{ if(UI.prov) UI.prov.error=""; const r=root.querySelector(".asig .req"); if(r) r.remove(); };
+  root.querySelectorAll("[data-pn]").forEach(x=>x.onchange=()=>{ if(UI.prov){ UI.prov.nombre=x.value; sinError(); } });
+  root.querySelectorAll("[data-pm]").forEach(x=>x.oninput=()=>{ if(UI.prov){ UI.prov.mensaje=x.value; sinError(); } });
+  root.querySelectorAll("[data-pc]").forEach(b=>b.onclick=()=>{ const k=UI.prov&&UI.prov.key; UI.prov=null; if(k) refrescar(k); });
+  root.querySelectorAll("[data-ps]").forEach(b=>b.onclick=()=>{
+    const d=UI.prov; if(!d) return; const o=ownerDe(d.key); if(!o) return;
+    if(!d.nombre || !d.mensaje.trim()){ d.error="Elige el proveedor y escribe el mensaje."; refrescar(d.key); return; }
+    o.prov={nombre:d.nombre, mensaje:d.mensaje.trim()}; UI.prov=null; marcarInicio(); guardar(); refrescar(d.key);
+  });
+}
+
+/* ---------- Hallazgos: se pueden agregar desde cualquier pantalla de la inspección ---------- */
+function abrirHallazgo(id){
+  if(!I) return;
+  if(!id){ const h={id:uid(), titulo:"", descripcion:"", fotos:[], prov:null}; I.hallazgos.push(h); id=h.id; guardar(); }
+  go({name:"hallazgo", id, volver:{name:view.name, id:view.id}});
+}
+function cerrarHallazgo(h){
+  const vacio=!(h.titulo||"").trim() && !(h.descripcion||"").trim() && !h.fotos.length && !h.prov;
+  if(vacio) I.hallazgos=I.hallazgos.filter(x=>x!==h);
+  guardar(); go(view.volver||{name:"insp"});
+}
+function vHallazgo(){
+  const h=hallazgosDe(I).find(x=>x.id===view.id); if(!h) return go(view.volver||{name:"insp"});
+  const n=I.hallazgos.indexOf(h)+1;
+  setTop(condoDe(I).nombre, ()=>cerrarHallazgo(h));
+  $app.innerHTML=`<section class="sec-head"><p class="eyebrow">Hallazgo ${n}</p><h2>Hallazgo</h2>
+      <span class="muted" style="font-size:14px">Algo que encontraste fuera de la lista de puntos. Agrega fotos y, si hace falta, asígnalo a un proveedor.</span></section>
     <div class="stack">
-      ${hallazgosDe(I).map((h,i)=>`<div class="item" style="gap:10px">
-        <div class="item-top"><span class="eyebrow" style="color:var(--olive-dark)">Hallazgo ${i+1}</span><button class="link" type="button" data-hdel="${i}" style="color:var(--urg);padding:0">Quitar</button></div>
-        <label class="f" for="h-t-${i}" style="font-size:15px">Título<input type="text" id="h-t-${i}" data-ht="${i}" value="${esc(h.titulo)}" placeholder="Ej.: Proyecto especial, Filial 12, Desagües"></label>
-        <label class="f" for="h-d-${i}" style="font-size:15px"><span>Descripción <span class="hint">(opcional)</span></span><textarea id="h-d-${i}" data-hd="${i}" placeholder="Detalle de lo encontrado">${esc(h.descripcion)}</textarea></label>
-      </div>`).join("")}
-      <button class="btn sec" id="bAddH" type="button">+ Agregar hallazgo</button>
-      <div class="f" style="display:flex;flex-direction:column;gap:6px;font-weight:600">Evidencia fotográfica general<span class="hint">Hasta ${MAX_FOTOS_GENERAL} fotos del recorrido en general.</span>
-        <div id="gfotos">${fotosHTML(c.fotos, MAX_FOTOS_GENERAL, "general", "evidencia general")}</div></div>
-      <div class="f" style="display:flex;flex-direction:column;gap:8px;font-weight:600">¿Se crearon casos de seguimiento a proveedor?
-        <div class="yn" role="group"><button type="button" data-yn="si" aria-pressed="${c.proveedor==="si"}">Sí</button><button type="button" data-yn="no" aria-pressed="${c.proveedor==="no"}">No</button></div>
-        ${c.proveedor===null?`<span class="req">Falta responder</span>`:""}
-      </div>
-      ${c.proveedor==="si"?`<label class="f" for="k-proveedores">Nombre del proveedor o proveedores<textarea id="k-proveedores" data-k="proveedores" placeholder="Ej.: Fumigadora X, Piscinas Y">${esc(c.proveedores)}</textarea>
-        ${c.proveedores.trim()?"":`<span class="req">Falta el nombre del proveedor</span>`}</label>`:""}
+      <label class="f" for="h-t">Título<input type="text" id="h-t" value="${esc(h.titulo)}" placeholder="Ej.: Filial 12, desagüe tapado" maxlength="80"></label>
+      <label class="f" for="h-d"><span>Descripción <span class="hint">(opcional)</span></span><textarea id="h-d" placeholder="Detalle de lo encontrado">${esc(h.descripcion)}</textarea></label>
+      <div class="f" style="display:flex;flex-direction:column;gap:6px;font-weight:600">Fotos<span class="hint">Hasta ${MAX_FOTOS} fotos.</span>${fotosHTML(h.fotos, MAX_FOTOS, "h", "hallazgo")}</div>
+      ${asignarHTML("h",h)}
     </div>`;
-  $app.querySelectorAll("[data-k]").forEach(t=>t.oninput=()=>{
-    const antes=cierreCompleto(I); I.cierre[t.dataset.k]=t.value; marcarInicio(); guardar();
-    if(t.dataset.k==="proveedores" && antes!==cierreCompleto(I)){ const y=scrollY,pos=t.selectionStart; vCierre(); scrollTo(0,y); const n=document.getElementById("k-proveedores"); if(n){n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){}} }
-  });
-  $app.querySelectorAll("[data-ht],[data-hd]").forEach(t=>t.oninput=()=>{
-    const i=Number(t.dataset.ht ?? t.dataset.hd); const h=I.cierre.hallazgos[i]; if(!h) return;
-    if(t.dataset.ht!==undefined) h.titulo=t.value; else h.descripcion=t.value; marcarInicio(); guardar();
-  });
-  $app.querySelectorAll("[data-hdel]").forEach(b=>b.onclick=()=>{ I.cierre.hallazgos.splice(Number(b.dataset.hdel),1); guardar(); const y=scrollY; vCierre(); scrollTo(0,y); });
-  document.getElementById("bAddH").onclick=()=>{
-    if(!Array.isArray(I.cierre.hallazgos)) I.cierre.hallazgos=[];
-    I.cierre.hallazgos.push({titulo:"",descripcion:""}); guardar(); const y=scrollY; vCierre(); scrollTo(0,y);
-    const n=document.getElementById("h-t-"+(I.cierre.hallazgos.length-1)); if(n) n.focus();
-  };
-  $app.querySelectorAll("[data-yn]").forEach(b=>b.onclick=()=>{ I.cierre.proveedor=b.dataset.yn; marcarInicio(); guardar(); const y=scrollY; vCierre(); scrollTo(0,y); });
+  const y=()=>{ const v=scrollY; vHallazgo(); scrollTo(0,v); };
+  const t=document.getElementById("h-t");
+  t.oninput=()=>{ h.titulo=t.value; marcarInicio(); guardar(); footH(h); };
+  document.getElementById("h-d").oninput=e=>{ h.descripcion=e.target.value; marcarInicio(); guardar(); };
   const gi=$app.querySelector("[data-ph]"); if(gi) gi.onchange=async()=>{
     const f=gi.files&&gi.files[0]; if(!f) return;
-    try{ const foto=await comprimir(f); I.cierre.fotos=[...I.cierre.fotos,foto].slice(0,MAX_FOTOS_GENERAL); marcarInicio(); guardar(); const y=scrollY; vCierre(); scrollTo(0,y); }
+    try{ const foto=await comprimir(f); h.fotos=[...h.fotos,foto].slice(0,MAX_FOTOS); marcarInicio(); guardar(); y(); }
     catch(e){ toast("No se pudo leer la foto. Intenta de nuevo."); }
   };
-  $app.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ I.cierre.fotos.splice(Number(b.dataset.i),1); guardar(); const y=scrollY; vCierre(); scrollTo(0,y); });
-  setFoot(`<button class="btn" id="bVolver" type="button">Volver a los apartados</button>`);
-  document.getElementById("bVolver").onclick=()=>go({name:"insp"});
+  $app.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ h.fotos.splice(Number(b.dataset.i),1); guardar(); y(); });
+  bindAsignar($app, ()=>h, ()=>y());
+  footH(h);
+}
+function footH(h){
+  const ok=(h.titulo||"").trim().length>0;
+  setFoot(`${ok?"":`<span class="foot-note">Falta el título</span>`}
+    <div class="row2"><button class="btn sec" id="hDel" type="button">Eliminar</button><button class="btn" id="hOk" type="button" ${ok?"":"disabled"}>Guardar</button></div>`);
+  document.getElementById("hOk").onclick=()=>{ cerrarHallazgo(h); toast("Hallazgo guardado"); };
+  document.getElementById("hDel").onclick=()=>{
+    setFoot(`<div class="confirm"><strong>¿Eliminar este hallazgo?</strong><span class="muted">Se borran su descripción y sus fotos.</span>
+      <div class="row2"><button class="btn sec" id="eNo" type="button">Cancelar</button><button class="btn danger" id="eYes" type="button">Eliminar</button></div></div>`);
+    document.getElementById("eNo").onclick=()=>footH(h);
+    document.getElementById("eYes").onclick=()=>{ I.hallazgos=I.hallazgos.filter(x=>x!==h); guardar(); go(view.volver||{name:"insp"}); toast("Hallazgo eliminado"); };
+  };
 }
 
 /* ---------- Fotos: reducir tamaño antes de guardar ---------- */
@@ -707,7 +795,10 @@ function vFirma(){
     ${statsHTML(c)}
     ${atencion.length?`<section class="block"><h3>Requieren atención</h3>
       ${atencion.map(p=>{ const d=I.items[p.id]; const e=ESTADOS[d.estado];
-        return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding-block:8px;border-bottom:1px solid var(--line)"><div><strong>${esc(p.nombre)}</strong><div class="muted" style="font-size:14px">${esc(d.comentario)}</div></div><span class="pill ${e.cls}">${e.txt}</span></div>`;}).join("")}
+        return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding-block:8px;border-bottom:1px solid var(--line)"><div><strong>${esc(p.nombre)}</strong><div class="muted" style="font-size:14px">${esc(d.comentario)}</div>${d.prov?`<div style="font-size:14px;color:var(--olive-dark);font-weight:600">Asignado a ${esc(d.prov.nombre)}</div>`:""}</div><span class="pill ${e.cls}">${e.txt}</span></div>`;}).join("")}
+    </section>`:""}
+    ${hallazgosDe(I).length?`<section class="block"><h3>Hallazgos</h3>
+      ${hallazgosDe(I).map((h,i)=>`<div style="padding-block:8px;border-bottom:1px solid var(--line)"><strong>${esc(tituloH(h,i))}</strong>${h.descripcion?`<div class="muted" style="font-size:14px">${esc(h.descripcion)}</div>`:""}${h.prov?`<div style="font-size:14px;color:var(--olive-dark);font-weight:600">Asignado a ${esc(h.prov.nombre)}</div>`:""}</div>`).join("")}
     </section>`:""}
     <section class="block"><h3>Firma</h3>
       <div id="quien" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><strong>${esc(I.admin)}</strong><div class="muted" style="font-size:14px">${esc(cargoDe(I))}</div></div><button class="link" id="bCorr" type="button">Cambiar persona</button></div>
@@ -819,13 +910,157 @@ function vFinal(){
     <div><p class="muted" style="font-size:14px">${fechaLarga(I.fecha)}</p><h2>Inspección de ${esc(cd.nombre)} terminada</h2></div>
     <p class="muted">${esc(I.admin)} · ${hora(I.inicio)} – ${hora(I.fin)}</p>
     ${statsHTML(conteos(I))}
-    <div class="tip"><strong style="color:var(--ink)">Para enviarlo:</strong> toca <em>Compartir PDF</em>, elige <strong>Slack</strong> y selecciona el canal de <strong>${esc(cd.nombre)}</strong>.</div>
+    <div class="tip"><strong style="color:var(--ink)">Registro:</strong> toca <em>Compartir PDF</em>, elige <strong>Slack</strong> y selecciona el canal de <strong>${esc(cd.nombre)}</strong>.</div>
+    ${solicitudesHTML(I)}
     <div class="thanks"><img src="${HP.logo}" alt="Hacienda Pinilla"><p>${esc(MENSAJE_FINAL)}</p><b>EQUIPO COA</b></div>
   </section>`;
   setFoot(`<button class="btn" id="bPdf" type="button">Compartir PDF</button>
     <button class="btn ghost" id="bNew" type="button">Volver al inicio</button>`);
   document.getElementById("bPdf").onclick=()=>compartirPDF(I, document.getElementById("bPdf"));
+  bindSolicitudes($app);
   document.getElementById("bNew").onclick=async()=>{ I=null; await DB.del("actual"); go({name:"home"}); };
+}
+
+/* ---------- Solicitudes a proveedores (una imagen por proveedor) ---------- */
+// Agrupa por proveedor todo lo asignado: puntos en Malo/Urgente y hallazgos
+function solicitudesDe(rec){
+  const g=new Map(); const add=(n,it)=>{ if(!g.has(n)) g.set(n,[]); g.get(n).push(it); };
+  todosDe(rec).filter(p=>NECESITA_EVIDENCIA(rec.items[p.id]?.estado) && rec.items[p.id].prov)
+    .sort((a,b)=>(rec.items[a.id].estado==="urgente"?0:1)-(rec.items[b.id].estado==="urgente"?0:1))
+    .forEach(p=>{ const d=rec.items[p.id]; add(d.prov.nombre,{tipo:"punto", titulo:p.nombre, ctx:p.sec.nombre, estado:d.estado, obs:d.comentario||"", mensaje:d.prov.mensaje, fotos:d.fotos||[]}); });
+  hallazgosDe(rec).forEach((h,i)=>{ if(h.prov) add(h.prov.nombre,{tipo:"hallazgo", titulo:tituloH(h,i), ctx:"", estado:null, obs:h.descripcion||"", mensaje:h.prov.mensaje, fotos:h.fotos||[]}); });
+  return [...g].map(([nombre,items])=>({nombre,items}));
+}
+function solicitudesHTML(rec){
+  const S=solicitudesDe(rec); if(!S.length) return "";
+  const env=rec.solicitudes||{};
+  return `<section class="block sol-wrap"><h3>Solicitudes a proveedores</h3>
+    <span class="hint">Una imagen por proveedor. Compártela en su canal o descárgala para adjuntarla desde la galería.</span>
+    ${S.map((g,i)=>`<div class="sol"><div class="sol-top"><div><strong>${esc(g.nombre)}</strong><span class="muted" style="font-size:14px">${g.items.length} ${g.items.length===1?"asignación":"asignaciones"}</span></div>${env[g.nombre]?`<span class="pill prog">✓ Compartido</span>`:""}</div>
+      <div class="row2"><button class="btn" type="button" data-sol="share" data-r="${rec.id}" data-i="${i}">Compartir imagen</button><button class="btn sec" type="button" data-sol="down" data-r="${rec.id}" data-i="${i}">Descargar imagen</button></div></div>`).join("")}
+  </section>`;
+}
+function bindSolicitudes(root){
+  root.querySelectorAll("[data-sol]").forEach(b=>b.onclick=()=>{
+    const rec=(I&&I.id===b.dataset.r)?I:HIST.find(h=>h.id===b.dataset.r); if(!rec) return;
+    const g=solicitudesDe(rec)[Number(b.dataset.i)]; if(g) enviarSolicitud(rec,g,b.dataset.sol,b);
+  });
+}
+const BODY='"Source Sans 3", -apple-system, "Segoe UI", Roboto, Arial, sans-serif', DISP='"Cormorant Garamond", Georgia, "Times New Roman", serif';
+const IMG_W=1080, POR_IMAGEN=2;   // ancho de la imagen y máximo de asignaciones por imagen (para que no quede larguísima)
+function cargarImg(src){ return new Promise(res=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>res(null); im.src=src; }); }
+function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function envolver(ctx,texto,maxW,maxLin){
+  const lin=[];
+  String(texto||"").split(/\n/).forEach(par=>{ let l=""; par.split(/\s+/).filter(Boolean).forEach(w=>{ const t=l?l+" "+w:w; if(l && ctx.measureText(t).width>maxW){ lin.push(l); l=w; } else l=t; }); lin.push(l); });
+  while(lin.length>1 && !lin[lin.length-1]) lin.pop();
+  if(maxLin && lin.length>maxLin){ lin.length=maxLin; let u=lin[maxLin-1]; while(u && ctx.measureText(u+"…").width>maxW) u=u.slice(0,-1); lin[maxLin-1]=u.replace(/\s+$/,"")+"…"; }
+  return lin;
+}
+// Dibuja una imagen de solicitud. Con dry=true solo mide y devuelve el alto.
+function dibujarSolicitud(ctx, d, dry){
+  const W=IMG_W, P=56, IW=W-2*P;
+  const INK="#2f2f0e", MUTED="#6b6b52", OLIVE="#9a9a54", OLIVED="#6f6f33", LINE="#e3e3d4", SOFT="#eeeedd";
+  const F=(w,sz)=>{ ctx.font=`${w} ${sz}px ${BODY}`; };
+  ctx.textBaseline="top"; ctx.textAlign="left";
+  if(!dry){ ctx.fillStyle="#fff"; ctx.fillRect(0,0,W,d.alto); }
+  let y=P; const lh=72;
+  // logos
+  if(d.hpImg){ const w=lh*d.hpImg.naturalWidth/d.hpImg.naturalHeight; if(!dry) ctx.drawImage(d.hpImg,P,y,w,lh); }
+  if(d.cdImg){ const k=Math.min(lh/d.cdImg.naturalHeight, 260/d.cdImg.naturalWidth), w=d.cdImg.naturalWidth*k, h=d.cdImg.naturalHeight*k; if(!dry) ctx.drawImage(d.cdImg,W-P-w,y+(lh-h)/2,w,h); }
+  y+=lh+26; if(!dry){ ctx.fillStyle=OLIVE; ctx.fillRect(P,y,IW,3); } y+=40;
+  // título
+  F(600,24); try{ ctx.letterSpacing="3px"; }catch(e){}
+  if(!dry){ ctx.fillStyle=MUTED; ctx.fillText("SOLICITUD DE TRABAJO",P,y); if(d.tot>1){ ctx.textAlign="right"; ctx.fillText(`${d.pag} DE ${d.tot}`,W-P,y); ctx.textAlign="left"; } }
+  try{ ctx.letterSpacing="0px"; }catch(e){}
+  y+=44; ctx.font=`600 70px ${DISP}`;
+  envolver(ctx,"Para: "+d.prov,IW,2).forEach(l=>{ if(!dry){ ctx.fillStyle=INK; ctx.fillText(l,P,y); } y+=72; });
+  y+=6; F(400,30);
+  envolver(ctx,`${d.cd.nombre} · ${fechaCorta(d.rec.fecha)} · Solicita ${d.rec.admin} (${cargoDe(d.rec)})`,IW,2).forEach(l=>{ if(!dry){ ctx.fillStyle=MUTED; ctx.fillText(l,P,y); } y+=40; });
+  y+=26;
+  // asignaciones
+  d.items.forEach(it=>{
+    const ip=36, ix=P+ip, iw=IW-2*ip; let yy=y+ip;
+    // etiqueta
+    const e=it.estado?ESTADOS[it.estado]:null; const tag=e?e.txt:"Hallazgo";
+    F(700,24); const tw=ctx.measureText(tag).width+36;
+    if(!dry){ ctx.fillStyle=e?`rgb(${e.pdf.join(",")})`:SOFT; rr(ctx,ix,yy,tw,42,21); ctx.fill(); ctx.fillStyle=e?"#fff":OLIVED; ctx.fillText(tag,ix+18,yy+9);
+      if(it.ctx){ F(400,26); ctx.fillStyle=MUTED; ctx.fillText(it.ctx,ix+tw+16,yy+8); } }
+    yy+=42+20;
+    // título del punto
+    F(700,40); envolver(ctx,it.titulo,iw,2).forEach(l=>{ if(!dry){ ctx.fillStyle=INK; ctx.fillText(l,ix,yy); } yy+=48; });
+    yy+=14;
+    // mensaje
+    F(400,34); const ml=envolver(ctx,it.mensaje,iw-56,7); const hb=28+30+ml.length*46+28;
+    if(!dry){ ctx.fillStyle=SOFT; rr(ctx,ix,yy,iw,hb,16); ctx.fill(); F(700,22); try{ctx.letterSpacing="2px";}catch(e){} ctx.fillStyle=OLIVED; ctx.fillText("MENSAJE",ix+28,yy+26); try{ctx.letterSpacing="0px";}catch(e){}
+      F(400,34); ctx.fillStyle=INK; ml.forEach((l,i)=>ctx.fillText(l,ix+28,yy+28+30+i*46)); }
+    yy+=hb+22;
+    // lo encontrado
+    if((it.obs||"").trim()){
+      F(400,30); const ol=envolver(ctx,it.obs,iw,3);
+      if(!dry){ F(700,22); try{ctx.letterSpacing="2px";}catch(e){} ctx.fillStyle=MUTED; ctx.fillText("LO ENCONTRADO",ix,yy); try{ctx.letterSpacing="0px";}catch(e){} F(400,30); ol.forEach((l,i)=>ctx.fillText(l,ix,yy+32+i*40)); }
+      yy+=32+ol.length*40+22;
+    }
+    // fotos (hasta 2, grandes y completas)
+    const im=it.imgs||[];
+    if(im.length){
+      const n=im.length, bh=n===1?460:380, bw=n===1?iw:(iw-20)/2;
+      im.forEach((img,i)=>{ if(dry) return; const bx=ix+i*(bw+20);
+        ctx.save(); rr(ctx,bx,yy,bw,bh,14); ctx.clip(); ctx.fillStyle="#f3f3e9"; ctx.fillRect(bx,yy,bw,bh);
+        const k=Math.min(bw/img.naturalWidth,bh/img.naturalHeight), w=img.naturalWidth*k, h=img.naturalHeight*k; ctx.drawImage(img,bx+(bw-w)/2,yy+(bh-h)/2,w,h); ctx.restore(); });
+      yy+=bh+16;
+      if(it.extra>0){ F(400,24); if(!dry){ ctx.fillStyle=MUTED; ctx.fillText(`+ ${it.extra} ${it.extra===1?"foto más":"fotos más"} en el PDF`,ix,yy); } yy+=34; }
+    }
+    yy+=ip-10; const ch=yy-y;
+    if(!dry){ ctx.strokeStyle=LINE; ctx.lineWidth=2; rr(ctx,P,y,IW,ch,22); ctx.stroke(); }
+    y+=ch+26;
+  });
+  // pie
+  if(!dry){ ctx.fillStyle=LINE; ctx.fillRect(P,y,IW,2); F(400,24); ctx.fillStyle=MUTED; ctx.textAlign="center"; ctx.fillText("Hacienda Pinilla · COA Administración de Condominios",W/2,y+22); ctx.textAlign="left"; }
+  return y+22+24+P;
+}
+async function construirImagenes(rec, cd, hp, g){
+  try{ await Promise.all([document.fonts.load(`600 40px ${BODY}`,"áéíóúñ"), document.fonts.load(`400 30px ${BODY}`,"áéíóúñ"), document.fonts.load(`700 30px ${BODY}`,"áéíóúñ"), document.fonts.load(`600 60px ${DISP}`,"áéíóúñ")]); }catch(e){}
+  const hpImg=hp?await cargarImg(hp.data):null, cdImg=cd.data?await cargarImg(cd.data):null;
+  const items=[];
+  for(const it of g.items){ const imgs=(await Promise.all(it.fotos.slice(0,2).map(f=>cargarImg(f.src)))).filter(Boolean); items.push({...it, imgs, extra:Math.max(0,it.fotos.length-2)}); }
+  const grupos=[]; for(let i=0;i<items.length;i+=POR_IMAGEN) grupos.push(items.slice(i,i+POR_IMAGEN));
+  const blobs=[];
+  for(let k=0;k<grupos.length;k++){
+    const d={rec, cd, hpImg, cdImg, prov:g.nombre, items:grupos[k], pag:k+1, tot:grupos.length, alto:0};
+    d.alto=Math.ceil(dibujarSolicitud(document.createElement("canvas").getContext("2d"), d, true));
+    const c=document.createElement("canvas"); c.width=IMG_W; c.height=d.alto; dibujarSolicitud(c.getContext("2d"), d, false);
+    blobs.push(await new Promise(res=>c.toBlob(res,"image/png")));
+  }
+  return blobs;
+}
+async function enviarSolicitud(rec, g, modo, btn){
+  const txt=btn.textContent; btn.disabled=true; btn.textContent="Preparando…";
+  try{
+    const cd={...condoDe(rec)}; if(!cd.data){ const l=await imgDatos(cd.logo); if(l) Object.assign(cd,l); }
+    const hp=await imgDatos(HP.logo);
+    const blobs=await construirImagenes(rec,cd,hp,g);
+    const limpio=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\w]+/g,"-").replace(/^-|-$/g,"");
+    const base=`Solicitud_${limpio(g.nombre)}_${limpio(cd.nombre)}_${rec.fecha}`;
+    const files=blobs.map((b,i)=>new File([b], blobs.length>1?`${base}_${i+1}de${blobs.length}.png`:`${base}.png`, {type:"image/png"}));
+    const titulo=`Solicitud para ${g.nombre} · ${cd.nombre} · ${fechaCorta(rec.fecha)}`;
+    let hecho=false, enviado=false;
+    if(modo==="share" && navigator.canShare){
+      try{ if(navigator.canShare({files})){ await navigator.share({files,title:titulo,text:titulo}); hecho=true; enviado=true; } }
+      catch(e){ if(e&&e.name==="AbortError") hecho=true; }
+    }
+    if(!hecho){
+      for(const f of files){ const url=URL.createObjectURL(f); const a=document.createElement("a"); a.href=url; a.download=f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); await new Promise(r=>setTimeout(r,350)); }
+      toast(files.length>1?"Imágenes descargadas":"Imagen descargada"); enviado=true;
+    }
+    if(enviado){
+      (rec.solicitudes ||= {})[g.nombre]=new Date().toISOString();
+      const h=HIST.find(x=>x.id===rec.id); if(h) h.solicitudes=rec.solicitudes;
+      await DB.set("historial",HIST); if(I && I.id===rec.id) await DB.set("actual",I);
+      const y=scrollY; if(view.name==="final"){ vFinal(); scrollTo(0,y); } else if(view.name==="hist"){ vHist(); scrollTo(0,y); }
+    }
+  }catch(e){ console.error(e); toast("No se pudo preparar la imagen. Intenta de nuevo."); }
+  finally{ if(btn.isConnected){ btn.disabled=false; btn.textContent=txt; } }
 }
 
 /* ---------- Historial ---------- */
@@ -844,8 +1079,10 @@ function vHist(){
     <ul class="hist">${lista.map(h=>{ const c=conteos(h); const cd=condoDe(h);
       return `<li><div class="hist-top"><img src="${logoDe(cd)}" alt=""><div><strong>${esc(cd.nombre)}</strong><span class="muted tnum" style="font-size:14px">${fechaCorta(h.fecha)} · ${hora(h.inicio)} – ${hora(h.fin)} · ${esc(h.admin)}</span></div></div>
         <div class="pills">${h.compartido?`<span class="pill prog">✓ Compartido</span>`:`<span class="pill na">Sin compartir</span>`}${c.urgente?`<span class="pill urg">${c.urgente} urgente</span>`:""}${c.malo?`<span class="pill bad">${c.malo} malo</span>`:""}</div>
-        <button class="btn sec" type="button" data-pdf="${h.id}">Compartir PDF</button></li>`;}).join("")}</ul>`;
+        <div class="sol-btns"><button class="btn sec" type="button" data-pdf="${h.id}">Compartir PDF</button>
+        ${solicitudesDe(h).map((g,i)=>`<button class="btn sec" type="button" data-sol="share" data-r="${h.id}" data-i="${i}">Imagen para ${esc(g.nombre)}${h.solicitudes&&h.solicitudes[g.nombre]?" ✓":""}</button>`).join("")}</div></li>`;}).join("")}</ul>`;
   $app.querySelectorAll("[data-pdf]").forEach(b=>b.onclick=()=>compartirPDF(HIST.find(h=>h.id===b.dataset.pdf), b));
+  bindSolicitudes($app);
   const bl=document.getElementById("bLimpiar"); if(bl) bl.onclick=()=>{
     document.getElementById("limpiar").innerHTML=`<div class="confirm" style="margin-block:8px"><strong>¿Borrar las ${enviadas} inspecciones ya compartidas?</strong><span class="muted">Se quitan de este teléfono con sus fotos para liberar espacio. Los PDF ya enviados siguen en Slack.</span>
       <div class="row2"><button class="btn sec" id="lNo" type="button">Cancelar</button><button class="btn danger" id="lYes" type="button">Borrar</button></div></div>`;
@@ -864,6 +1101,13 @@ function construirPDF(rec, cd, hp){
   const espacio=h=>{ if(y+h>H-18) nueva(); };
   const c=conteos(rec); const cargo=cargoDe(rec);
   const titulo=(t)=>{ espacio(14); doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(...OLIVED); doc.text(t,M,y); y+=2; doc.setDrawColor(...OLIVE); doc.setLineWidth(0.4); doc.line(M,y,W-M,y); y+=6; };
+  const fotosFila=(fotos)=>{ if(!fotos.length) return; let fx=M; const bh=38;
+    fotos.forEach(f=>{ const fw=Math.min(56,bh*f.w/f.h), fh=fw*f.h/f.w; try{ doc.addImage(f.src,"JPEG",fx,y,fw,fh); }catch(err){} fx+=fw+4; }); y+=bh+4; };
+  const altoProv=(prov)=>{ if(!prov) return 0; doc.setFont("helvetica","normal"); doc.setFontSize(9.2); return 12+doc.splitTextToSize(prov.mensaje,CW-8).length*4.3; };
+  const cajaProv=(prov)=>{ if(!prov) return; doc.setFont("helvetica","normal"); doc.setFontSize(9.2); const ml=doc.splitTextToSize(prov.mensaje,CW-8); const hh=9+ml.length*4.3;
+    doc.setFillColor(...SOFT); doc.roundedRect(M,y,CW,hh,1.5,1.5,"F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(8.8); doc.setTextColor(...OLIVED); doc.text("Asignado a: "+prov.nombre,M+4,y+5);
+    doc.setFont("helvetica","normal"); doc.setFontSize(9.2); doc.setTextColor(...INK); doc.text(ml,M+4,y+9.6); y+=hh+3; };
   const pill=(e,xr,yy)=>{ doc.setFontSize(8.5); doc.setFont("helvetica","bold"); const tw=doc.getTextWidth(e.txt)+6; doc.setFillColor(...e.pdf); doc.roundedRect(xr-tw,yy-4.6,tw,6.2,1.8,1.8,"F"); doc.setTextColor(255,255,255); doc.text(e.txt,xr-tw/2,yy-0.3,{align:"center"}); };
 
   // Encabezado
@@ -899,14 +1143,12 @@ function construirPDF(rec, cd, hp){
       const d=rec.items[p.id]; const e=ESTADOS[d.estado];
       const coment=d.comentario?doc.splitTextToSize(d.comentario,CW-4):[];
       const fotos=d.fotos||[];
-      espacio(12+coment.length*4.5+(fotos.length?44:0));
+      espacio(12+coment.length*4.5+(fotos.length?44:0)+altoProv(d.prov));
       doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(...MUTED); doc.text(p.sec.nombre,M,y);
       doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(...INK); doc.text(p.nombre,M,y+5);
       pill(e,W-M,y+4.5); y+=9;
       if(coment.length){ doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...INK); doc.text(coment,M+2,y+1); y+=coment.length*4.5+2; }
-      if(fotos.length){ let fx=M; const bh=38;
-        fotos.forEach(f=>{ const fw=Math.min(56,bh*f.w/f.h), fh=fw*f.h/f.w; try{ doc.addImage(f.src,"JPEG",fx,y,fw,fh); }catch(err){} fx+=fw+4; });
-        y+=bh+4; }
+      fotosFila(fotos); cajaProv(d.prov);
       doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M,y,W-M,y); y+=6;
     });
     y+=2;
@@ -932,32 +1174,46 @@ function construirPDF(rec, cd, hp){
     y+=3;
   });
 
-  // Hallazgos y seguimiento
-  titulo("Hallazgos y seguimiento");
-  const ci=rec.cierre;
-  const hs=hallazgosLlenos(rec);
-  const bloques=[...(hs.length?hs.map((h,i)=>[(h.titulo||"").trim()||`Hallazgo ${i+1}`, (h.descripcion||"").trim()]):[["Hallazgos","Sin hallazgos registrados"]]),
-    ["¿Se crearon casos de seguimiento a proveedor?", ci.proveedor==="si"?"Sí":"No"]];
-  if(ci.proveedor==="si") bloques.push(["Proveedor(es)", ci.proveedores.trim()]);
-  bloques.forEach(([t,v])=>{
-    doc.setFont("helvetica","bold"); doc.setFontSize(9.5); const tl=doc.splitTextToSize(t,CW-2);
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); const lines=v?doc.splitTextToSize(v,CW-2):[];
-    espacio(4+tl.length*4.6+lines.length*4.6+3);
-    doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.setTextColor(...OLIVED); doc.text(tl,M,y); y+=tl.length*4.6;
-    if(lines.length){ doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(...(v==="Sin hallazgos registrados"?MUTED:INK)); doc.text(lines,M,y+0.4); y+=lines.length*4.6; }
-    y+=3;
-  });
-
-  // Evidencia fotográfica general
-  if(ci.fotos.length){
-    titulo("Evidencia fotográfica");
-    const fw=(CW-6)/2;
-    for(let i=0;i<ci.fotos.length;i+=2){
-      const fila=ci.fotos.slice(i,i+2); const fh=Math.min(66, Math.max(...fila.map(f=>fw*f.h/f.w)));
-      espacio(fh+6);
-      fila.forEach((f,j)=>{ let w=fw, h=fw*f.h/f.w; if(h>fh){ h=fh; w=fh*f.w/f.h; }
-        try{ doc.addImage(f.src,"JPEG",M+j*(fw+6)+(fw-w)/2,y,w,h); }catch(e){} });
-      y+=fh+6;
+  // Hallazgos
+  if(Array.isArray(rec.hallazgos)){
+    const hs=hallazgosDe(rec);
+    if(hs.length){
+      titulo("Hallazgos");
+      hs.forEach((h,i)=>{
+        const dl=h.descripcion?doc.splitTextToSize(h.descripcion,CW-4):[];
+        espacio(12+dl.length*4.5+(h.fotos.length?44:0)+altoProv(h.prov));
+        doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(...INK); doc.text(tituloH(h,i),M,y+1); y+=7;
+        if(dl.length){ doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...INK); doc.text(dl,M+2,y); y+=dl.length*4.5+2; }
+        fotosFila(h.fotos); cajaProv(h.prov);
+        doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M,y,W-M,y); y+=6;
+      });
+    }
+  } else if(rec.cierre){
+    // inspecciones hechas con la versión anterior
+    titulo("Hallazgos y seguimiento");
+    const ci=rec.cierre;
+    const hs=(ci.hallazgos||[]).filter(h=>(h.titulo||"").trim()||(h.descripcion||"").trim());
+    const bloques=[...(hs.length?hs.map((h,i)=>[(h.titulo||"").trim()||`Hallazgo ${i+1}`, (h.descripcion||"").trim()]):[["Hallazgos","Sin hallazgos registrados"]]),
+      ["¿Se crearon casos de seguimiento a proveedor?", ci.proveedor==="si"?"Sí":"No"]];
+    if(ci.proveedor==="si") bloques.push(["Proveedor(es)", (ci.proveedores||"").trim()]);
+    bloques.forEach(([t,v])=>{
+      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); const tl=doc.splitTextToSize(t,CW-2);
+      doc.setFont("helvetica","normal"); doc.setFontSize(10); const lines=v?doc.splitTextToSize(v,CW-2):[];
+      espacio(4+tl.length*4.6+lines.length*4.6+3);
+      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.setTextColor(...OLIVED); doc.text(tl,M,y); y+=tl.length*4.6;
+      if(lines.length){ doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(...(v==="Sin hallazgos registrados"?MUTED:INK)); doc.text(lines,M,y+0.4); y+=lines.length*4.6; }
+      y+=3;
+    });
+    if((ci.fotos||[]).length){
+      titulo("Evidencia fotográfica");
+      const fw=(CW-6)/2;
+      for(let i=0;i<ci.fotos.length;i+=2){
+        const fila=ci.fotos.slice(i,i+2); const fh=Math.min(66, Math.max(...fila.map(f=>fw*f.h/f.w)));
+        espacio(fh+6);
+        fila.forEach((f,j)=>{ let w=fw, h=fw*f.h/f.w; if(h>fh){ h=fh; w=fh*f.w/f.h; }
+          try{ doc.addImage(f.src,"JPEG",M+j*(fw+6)+(fw-w)/2,y,w,h); }catch(e){} });
+        y+=fh+6;
+      }
     }
   }
 
@@ -1019,7 +1275,7 @@ async function compartirPDF(rec, btn){
   try{
     const [act,hist]=await Promise.all([DB.get("actual"),DB.get("historial")]);
     HIST=Array.isArray(hist)?hist:[];
-    if(act && act.items){ I=act; if(I.cerrado){ I=null; await DB.del("actual"); } }
+    if(act && act.items){ I=act; if(I.cerrado){ I=null; await DB.del("actual"); } else migrar(I); }
   }catch(e){}
   render();
   if("serviceWorker" in navigator && location.protocol==="https:"){ try{ navigator.serviceWorker.register("sw.js"); }catch(e){} }

@@ -1,7 +1,7 @@
 // Guarda la app en el teléfono para que abra sin señal.
 // La página, el Google Sheet de configuración y los logos se buscan primero en internet,
 // así los cambios llegan a todos; si no hay señal, se usa la última copia guardada.
-const CACHE = "inspeccion-hp-v4";
+const CACHE = "inspeccion-hp-v5";
 const BASE = ["./", "./index.html", "./configuracion.json", "./manifest.json", "./icon-192.png", "./icon-512.png",
   "./logos/hacienda-pinilla.jpg",
   "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"];

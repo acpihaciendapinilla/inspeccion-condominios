@@ -21,6 +21,12 @@
       "cargo": "COA Coordinator"
     }
   ],
+  "proveedores": [
+    {
+      "nombre": "Light Blue",
+      "tipo": "Piscinas"
+    }
+  ],
   "condominios": [
     {
       "id": "almendros",
